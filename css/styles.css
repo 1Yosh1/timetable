@@ -1,0 +1,192 @@
+/* --- Google Font Import: Inter --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* --- University of Messina Inspired Color Palette --- */
+:root {
+    --unime-yellow: #FFD100;
+    --unime-red: #DA291C;
+    --primary-color: #003366;
+    --background-primary: #f8f9fa;
+    --background-secondary: #ffffff;
+    --text-primary: #212529;
+    --text-secondary: #6c757d;
+    --border-color: #dee2e6;
+}
+
+/* --- General Body & Typography --- */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    font-size: 16px;
+}
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+/* --- Sidebar Navigation --- */
+.sidebar {
+    width: 240px;
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: #2c3e50;
+    padding-top: 20px;
+    border-right: 1px solid #34495e;
+}
+.sidebar .sidebar-header {
+    padding: 0 20px 20px 20px;
+    margin-bottom: 10px;
+    color: #ffffff;
+    font-size: 1.5rem;
+    font-weight: 500;
+    border-bottom: 1px solid #404249;
+}
+.sidebar a {
+    padding: 12px 20px;
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #bdc3c7;
+    display: flex;
+    align-items: center;
+    transition: all 0.2s ease;
+    border-left: 4px solid transparent;
+}
+.sidebar a:hover {
+    color: #ffffff;
+    background-color: #34495e;
+    border-left-color: var(--unime-yellow);
+}
+.sidebar a.active {
+    color: #2c3e50;
+    background-color: var(--unime-yellow);
+    font-weight: 600;
+}
+.sidebar a.active .fas { color: #2c3e50 !important; }
+.sidebar a .fas { margin-right: 16px; width: 20px; text-align: center; color: #bdc3c7; }
+
+/* --- CORRECTED: Styles for Collapsible Submenu --- */
+.sidebar ul.collapse {
+    background-color: rgba(0,0,0,0.2);
+}
+.sidebar ul li a {
+    font-size: 0.9em;
+    padding-left: 55px; /* Indent sub-links */
+    background: transparent;
+    border-left: 4px solid transparent;
+}
+.sidebar ul li a.active, .sidebar ul li a:hover {
+    color: #fff;
+    background-color: #34495e;
+    border-left-color: var(--unime-yellow);
+}
+a[data-toggle="collapse"] { position: relative; }
+.dropdown-toggle::after {
+    content: '\f0da';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    transition: transform 0.2s ease;
+}
+.dropdown-toggle[aria-expanded="true"]::after {
+    transform: translateY(-50%) rotate(90deg);
+}
+
+/* --- Main Content & Other Styles --- */
+.main-content { margin-left: 240px; padding: 40px; }
+.card { background-color: var(--background-secondary); border: 1px solid var(--border-color); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+.card-header { background-color: transparent; border-bottom: 1px solid var(--border-color); font-size: 1.2rem; padding: 1rem 1.5rem; font-weight: 500; }
+.btn { border-radius: 6px; font-weight: 600; padding: 10px 20px; }
+.btn-primary { background-color: var(--unime-yellow); color: var(--primary-color); border: 2px solid var(--unime-yellow); }
+.btn-primary:hover { background-color: #FFDE59; border-color: #FFDE59; }
+.btn-danger { background-color: var(--unime-red); color: #fff; }
+.form-control:focus { border-color: var(--unime-yellow); box-shadow: 0 0 0 0.2rem rgba(255, 209, 0, 0.25); }
+.table thead th { color: var(--primary-color); border-bottom: 2px solid var(--primary-color); }
+.table-hover tbody tr:hover { background-color: #fef8dd; }
+/* --- NEW: Google-Inspired Light Login Page Styles --- */
+
+.login-page-body {
+    background-color: #f1f1f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.login-container {
+    max-width: 450px;
+    width: 100%;
+    padding: 40px 30px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e5e5e5;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.login-logo {
+    font-size: 32px;
+    color: #4285F4; /* Google Blue */
+    margin-bottom: 15px;
+}
+
+.login-header h2 {
+    font-weight: 400;
+    font-size: 24px;
+    color: #202124;
+    margin-bottom: 5px;
+}
+
+.login-header p {
+    color: #5f6368;
+    font-size: 16px;
+}
+
+.login-container .form-group {
+    margin-bottom: 1rem;
+}
+
+.login-container .form-control {
+    background-color: #fff;
+    color: #202124;
+    border: 1px solid #ccc;
+    height: 44px; /* Taller input fields */
+}
+.login-container .form-control:focus {
+    border-color: #4285F4;
+    box-shadow: 0 0 0 1px #4285F4;
+}
+
+.login-container .btn-primary {
+    background-color: #4285F4;
+    border-color: #4285F4;
+    height: 44px;
+    font-weight: 500;
+}
+.login-container .btn-primary:hover {
+    background-color: #3367D6;
+    border-color: #3367D6;
+}
+
+.login-links {
+    text-align: center;
+    margin-top: 25px;
+}
+
+.login-links a {
+    color: #4285F4;
+    text-decoration: none;
+    font-weight: 500;
+}
