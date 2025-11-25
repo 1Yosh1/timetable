@@ -1,9 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
 
-    // --- Admin Dashboard Functionality ---
     if (document.getElementById('adminTabContent')) {
-        // Removed old immediate conflict fetch; debounced version below handles it.
-        // Populates the Edit User modal with existing data
         $('.edit-user-btn').on('click', function() {
             $('#edit-user-id').val($(this).data('id'));
             $('#edit-username').val($(this).data('username'));
@@ -11,7 +8,6 @@ document.addEventListener('DOMContentLoaded', function() {
             $('#edit-role').val($(this).data('role'));
         });
 
-        // Populates the Edit Course modal with existing data
         $('.edit-course-btn').on('click', function() {
             $('#edit-course-id').val($(this).data('id'));
             $('#edit-course-name').val($(this).data('name'));
@@ -20,9 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // --- Teacher Dashboard Functionality ---
     if (document.getElementById('teacherTabContent')) {
-        // Live search for the room booking table
         const roomSearchInput = document.getElementById('roomSearchInput');
         if (roomSearchInput) {
             roomSearchInput.addEventListener('keyup', function() {
@@ -30,8 +24,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const table = document.getElementById('roomBookingTable');
                 const rows = table.getElementsByTagName('tr');
 
-                for (let i = 1; i < rows.length; i++) { // Start at 1 to skip table header
-                    const roomNameCell = rows[i].getElementsByClassName('room-name')[0];
+                for (let i = 1; i < rows.length; i++) { const roomNameCell = rows[i].getElementsByClassName('room-name')[0];
                     if (roomNameCell) {
                         const roomName = roomNameCell.textContent || roomNameCell.innerText;
                         if (roomName.toLowerCase().indexOf(filter) > -1) {
@@ -45,23 +38,19 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-// --- Student Dashboard AJAX Functionality ---
 const studentDashboard = document.getElementById('studentTabContent');
 if (studentDashboard) {
     studentDashboard.addEventListener('click', function(e) {
-        // Handle Enroll Button
         if (e.target && e.target.classList.contains('enroll-btn')) {
             const courseId = e.target.dataset.courseId;
             handleEnrollment('enroll', courseId);
         }
-        // Handle Unenroll Button
         if (e.target && e.target.classList.contains('unenroll-btn')) {
             if (confirm('Are you sure you want to unenroll from this course?')) {
                 const courseId = e.target.dataset.courseId;
                 handleEnrollment('unenroll', courseId);
             }
         }
-        // Handle Request Approval Button
         if (e.target && e.target.classList.contains('request-approval-btn')) {
             const courseId = e.target.dataset.courseId;
             handleEnrollment('request_approval', courseId);
@@ -69,7 +58,6 @@ if (studentDashboard) {
     });
 }
 
-// Reusable async function to handle all enrollment actions via AJAX
 async function handleEnrollment(action, courseId) {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const formData = new FormData();
@@ -87,12 +75,10 @@ async function handleEnrollment(action, courseId) {
         if (result.success) {
             if(action === 'request_approval') {
                 alert('Your request has been sent to the administrator for approval.');
-                // Optionally, disable the button after request
                 document.querySelector(`[data-course-id="${courseId}"]`).disabled = true;
                 document.querySelector(`[data-course-id="${courseId}"]`).textContent = 'Pending';
             } else {
-                location.reload(); // Reload page to show other changes
-            }
+                location.reload();}
         } else {
             alert('An error occurred: ' + (result.message || 'Unknown error.'));
         }
@@ -102,8 +88,6 @@ async function handleEnrollment(action, courseId) {
     }
 }
 
-    // --- General Functionality for All Dashboards ---
-    // General confirmation for any form with the 'delete-form' class
     const deleteForms = document.querySelectorAll('.delete-form');
     if (deleteForms.length > 0) {
         deleteForms.forEach(form => {
@@ -115,7 +99,6 @@ async function handleEnrollment(action, courseId) {
         });
     }
 
-    // --- Enhanced Schedule Conflict Check (debounced) ---
     function debounce(fn, ms=250) {
         let t; return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), ms); };
     }

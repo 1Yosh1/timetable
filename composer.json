@@ -1,9 +1,0 @@
-{
-  "name": "timetable/app",
-  "require": {},
-  "autoload": {
-    "psr-4": {
-      "App\\": "app/"
-    }
-  }
-}

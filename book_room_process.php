@@ -9,14 +9,12 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
 $teacher_id = $_SESSION['user_id'];
 $courses = [];
 
-// Handle the final booking confirmation after a course is selected
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['confirm_booking'])) {
     $room_id = $_GET['room_id'];
     $day = $_GET['day'];
     $timeslot = $_GET['timeslot'];
     $course_id = $_GET['course_id'];
 
-    // Final check to prevent double booking
     $check_stmt = $conn->prepare("SELECT id FROM schedules WHERE room_id = ? AND day_of_week = ? AND timeslot = ?");
     $check_stmt->bind_param("iss", $room_id, $day, $timeslot);
     $check_stmt->execute();
@@ -35,19 +33,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['confirm_booking'])) {
     }
     exit();
 } 
-// Handle the initial POST from the dashboard and show the confirmation page
 elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['room_id'])) {
     $room_id = $_POST['room_id'];
     $day = $_POST['day'];
     $timeslot = $_POST['timeslot'];
 
-    // Fetch ONLY the courses assigned to this specific teacher
     $stmt = $conn->prepare("SELECT id, name FROM courses WHERE teacher_id = ?");
     $stmt->bind_param("i", $teacher_id);
     $stmt->execute();
     $courses = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 } else {
-    // Redirect if accessed directly without proper data
     header("Location: teacher_dashboard.php");
     exit();
 }

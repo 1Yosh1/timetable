@@ -14,10 +14,6 @@ $token = csrf_token();
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="css/styles.css">
-    <style>
-        /* Temporary debug: remove if not needed */
-        /* .login-container { position:relative; } */
-    </style>
 </head>
 <body class="login-page-body">
 <div class="login-container">

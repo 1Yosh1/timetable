@@ -21,7 +21,6 @@ function csrf_field(): string {
         htmlspecialchars(csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
 }
 
-/* Legacy alias (some older code may call csrf_verify) */
 function csrf_verify(?string $t): bool {
     return verify_csrf($t);
 }
