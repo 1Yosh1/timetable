@@ -1,3 +1,8 @@
+<?php
+require_once 'app/bootstrap.php';
+require_once 'app/csrf.php';
+$token = csrf_token();
+?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -15,17 +20,17 @@
         </div>
         
         <form action="admin_login_process.php" method="POST">
-             <div class="form-group">
-                <input type="text" name="username" class="form-control" placeholder="Admin Username" required>
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($token); ?>">
+            <div class="form-group">
+                <input type="text" name="username" class="form-control" placeholder="Admin Username" required autocomplete="username">
             </div>
             <div class="form-group">
-                <input type="password" name="password" class="form-control" placeholder="Password" required>
+                <input type="password" name="password" class="form-control" placeholder="Password" required autocomplete="current-password">
             </div>
             <button type="submit" class="btn btn-primary btn-block">Login</button>
         </form>
-
         <div class="login-links">
-             <a href="index.php">Back to Main Login</a>
+            <a href="index.php">Back to Main Login</a>
         </div>
     </div>
 </body>

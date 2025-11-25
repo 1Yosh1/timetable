@@ -1,44 +1,41 @@
 <?php
-session_start();
-require_once 'db_config.php';
+require_once __DIR__ . '/app/bootstrap.php';
+require_once __DIR__ . '/app/csrf.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
-    $role = $_POST['role'];
-
-    // Prepare statement to select the user by username and role
-    $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username = ? AND role = ?");
-    $stmt->bind_param("ss", $username, $role);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-
-        // Verify the password
-        if (password_verify($password, $user['password'])) {
-            // Set session variables
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['username'] = $user['username']; // Added for personalization
-
-            // Redirect based on role
-            if ($user['role'] === 'teacher') {
-                header("Location: teacher_dashboard.php");
-            } else if ($user['role'] === 'student') {
-                header("Location: student_dashboard.php");
-            } else if ($user['role'] === 'admin') {
-                header("Location: admin_dashboard.php");
-            }
-            exit();
-        }
-    }
-
-    // If login fails, redirect back with an error message
-    // You can enhance this by adding a GET parameter to show an error on the login page
-    echo "Invalid credentials or role selected. <a href='index.php'>Try again</a>.";
-    $stmt->close();
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    exit('Method not allowed');
 }
-$conn->close();
-?>
+
+if (!verify_csrf($_POST['csrf_token'] ?? null)) {
+    http_response_code(400);
+    exit('CSRF validation failed');
+}
+
+$username = trim($_POST['username'] ?? '');
+$password = $_POST['password'] ?? '';
+$role     = $_POST['role'] ?? '';
+
+if ($username === '' || $password === '' || !in_array($role, ['student','teacher','admin'], true)) {
+    http_response_code(422);
+    exit('Invalid input');
+}
+
+$stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username=? AND role=? LIMIT 1");
+$stmt->bind_param("ss", $username, $role);
+$stmt->execute();
+$res = $stmt->get_result();
+if ($user = $res->fetch_assoc()) {
+    if (password_verify($password, $user['password'])) {
+        session_regenerate_id(true);
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['username'] = $user['username'];
+        $_SESSION['role'] = $user['role'];
+        header('Location: ' . ($user['role'] === 'admin'
+            ? 'admin_dashboard.php'
+            : ($user['role'] === 'teacher' ? 'teacher_dashboard.php' : 'student_dashboard.php')));
+        exit;
+    }
+}
+http_response_code(401);
+exit('Invalid credentials');

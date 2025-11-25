@@ -1,51 +1,42 @@
 <?php
-require_once 'db_config.php';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
-    $role = isset($_POST['role']) ? $_POST['role'] : null;
-
-    $sql = "SELECT id, username, password, role FROM users WHERE username = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $username);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows === 1) {
-        $user = $result->fetch_assoc();
-        if (password_verify($password, $user['password'])) {
-            session_start();
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['role'];
-
-            if ($role === 'admin' && $user['role'] !== 'admin') {
-                echo "Access denied: Not an admin.";
-                exit();
-            }
-
-            switch ($user['role']) {
-                case 'admin':
-                    header("Location: admin_dashboard.php");
-                    break;
-                case 'teacher':
-                    header("Location: teacher_dashboard.php");
-                    break;
-                case 'student':
-                default:
-                    header("Location: student_dashboard.php");
-                    break;
-            }
-            exit();
-        } else {
-            echo "Invalid password";
-        }
-    } else {
-        echo "Invalid username";
-    }
-
-    $stmt->close();
-    $conn->close();
-}
+require_once __DIR__ . '/app/bootstrap.php';
+require_once __DIR__ . '/app/csrf.php';
 ?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+    <link rel="stylesheet" href="css/login.css">
+</head>
+<body class="login-page-body">
+    <div class="login-container">
+        <div class="login-header">
+            <h2>User Sign In</h2>
+            <p>Select your role and enter credentials</p>
+        </div>
+        <form action="login_process.php" method="POST">
+            <?php echo csrf_field(); ?>
+            <div class="form-group">
+                <label for="username">Username</label><br>
+                <input type="text" id="username" name="username" required autocomplete="username" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label><br>
+                <input type="password" id="password" name="password" required autocomplete="current-password" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="role">Role</label><br>
+                <select id="role" name="role" class="form-control" required>
+                    <option value="student">Student</option>
+                    <option value="teacher">Teacher</option>
+                </select>
+            </div>
+            <input type="submit" value="Login" class="btn btn-primary btn-block">
+        </form>
+        <div style="margin-top:15px; text-align:center;">
+            <a href="admin_login.php">Admin Login</a>
+        </div>
+    </div>
+</body>
+</html>

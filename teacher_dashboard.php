@@ -1,5 +1,13 @@
 <?php
-session_start();
+require_once __DIR__ . '/app/bootstrap.php';
+use App\Domain\DayOfWeek;
+use App\Domain\TimeSlot;
+$weekdays  = DayOfWeek::all();
+$timeslots = TimeSlot::all();
+
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     header("Location: index.php");
     exit();

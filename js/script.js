@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Admin Dashboard Functionality ---
     if (document.getElementById('adminTabContent')) {
+        // Removed old immediate conflict fetch; debounced version below handles it.
         // Populates the Edit User modal with existing data
         $('.edit-user-btn').on('click', function() {
             $('#edit-user-id').val($(this).data('id'));
@@ -16,32 +17,6 @@ document.addEventListener('DOMContentLoaded', function() {
             $('#edit-course-name').val($(this).data('name'));
             $('#edit-course-description').val($(this).data('description'));
             $('#edit-course-credits').val($(this).data('credits'));
-        });
-
-        // Live search/AJAX check for schedule conflicts
-        $('.schedule-input').on('change', async function() {
-            const roomId = $('select[name="room_id"]').val();
-            const day = $('select[name="day_of_week"]').val();
-            const timeslot = $('select[name="timeslot"]').val();
-            const warningEl = $('#conflict-warning');
-            
-            if (!roomId || !day || !timeslot) {
-                warningEl.html('');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`check_conflict.php?room_id=${roomId}&day=${day}&timeslot=${timeslot}`);
-                const data = await response.json();
-                
-                if (data.conflict) {
-                    warningEl.html(`⚠️ Conflict! This slot is booked for <strong>${data.course}</strong>.`);
-                } else {
-                    warningEl.html('');
-                }
-            } catch (error) {
-                console.error('Error checking for conflicts:', error);
-            }
         });
     }
 
@@ -96,9 +71,11 @@ if (studentDashboard) {
 
 // Reusable async function to handle all enrollment actions via AJAX
 async function handleEnrollment(action, courseId) {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const formData = new FormData();
     formData.append('action', action);
     formData.append('course_id', courseId);
+    formData.append('csrf_token', csrf);
 
     try {
         const response = await fetch('manage_enrollment.php', {
@@ -135,6 +112,46 @@ async function handleEnrollment(action, courseId) {
                     event.preventDefault();
                 }
             });
+        });
+    }
+
+    // --- Enhanced Schedule Conflict Check (debounced) ---
+    function debounce(fn, ms=250) {
+        let t; return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), ms); };
+    }
+
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+    async function apiFetch(url, options = {}) {
+        const merged = Object.assign({
+            headers: { 'X-CSRF-Token': csrfToken }
+        }, options);
+        return fetch(url, merged);
+    }
+
+    async function runConflictCheck() {
+        const roomId = document.querySelector('select[name="room_id"]')?.value;
+        const day = document.querySelector('select[name="day_of_week"]')?.value;
+        const timeslot = document.querySelector('select[name="timeslot"]')?.value;
+        const warningEl = document.getElementById('conflict-warning');
+        if (!warningEl) return;
+        if (!roomId || !day || !timeslot) { warningEl.innerHTML = ''; return; }
+
+        try {
+            const resp = await apiFetch(`check_conflict.php?room_id=${roomId}&day=${encodeURIComponent(day)}&timeslot=${encodeURIComponent(timeslot)}`);
+            const data = await resp.json();
+            warningEl.innerHTML = data.conflict
+                ? `⚠️ Conflict! This slot is booked for <strong>${data.course}</strong>.`
+                : '';
+        } catch (e) {
+            console.error('Conflict check error', e);
+        }
+    }
+    const debouncedConflict = debounce(runConflictCheck, 300);
+
+    if (document.getElementById('adminTabContent')) {
+        document.querySelectorAll('.schedule-input').forEach(el => {
+            el.addEventListener('change', debouncedConflict);
         });
     }
 
