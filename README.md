@@ -148,4 +148,4 @@ This project is licensed under the MIT License.
 ---
 
 ## Author
-Developed by [Your Name]. For inquiries, contact [your_email@example.com].
+Developed by Eyoas Zewdie

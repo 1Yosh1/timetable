@@ -138,20 +138,20 @@ $timeslots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00
                 <div class="form-group"><input type="text" id="roomSearchInput" class="form-control" placeholder="Search for a room name..."></div>
                  <div class="table-responsive">
                     <table class="table table-bordered timetable-grid text-center" id="roomBookingTable">
-                        <thead class="thead-light"><tr><th>Room</th><?php foreach ($weekdays as $day) echo "<th>$day</th>"; ?></tr></thead>
+                        <thead class="thead-light mb-3"><tr><th>Room</th><?php foreach ($weekdays as $day) echo "<th>$day</th>"; ?></tr></thead>
                         <tbody>
                         <?php foreach ($rooms as $room): ?>
-                            <tr><th class="align-middle room-name"><?php echo htmlspecialchars($room['name']); ?></th>
+                            <tr><th class="align-middle room-name mb-3"><?php echo htmlspecialchars($room['name']); ?></th>
                                 <?php foreach ($weekdays as $day): ?>
                                     <td>
                                     <?php foreach ($timeslots as $slot): ?>
                                         <?php $is_booked = isset($booked_slots[$room['id']][$day][$slot]); ?>
-                                        <div class="p-1 my-1 border rounded <?php echo $is_booked ? 'availability-booked' : 'availability-free'; ?>">
+                                        <div class="p-1 my-1 border rounded mb-3 <?php echo $is_booked ? 'availability-booked' : 'availability-free'; ?>">
                                             <small><?php echo $slot; ?></small>
                                             <?php if ($is_booked): ?>
                                                 <div class="font-weight-bold" style="font-size: 0.8em;"><?php echo htmlspecialchars($booked_slots[$room['id']][$day][$slot]); ?></div>
                                             <?php else: ?>
-                                                <form action="book_room_process.php" method="POST" class="d-inline"><input type="hidden" name="room_id" value="<?php echo $room['id']; ?>"><input type="hidden" name="day" value="<?php echo $day; ?>"><input type="hidden" name="timeslot" value="<?php echo $slot; ?>"><button type="submit" class="btn btn-success btn-sm p-0 px-1" style="font-size: 0.7em;">Book</button></form>
+                                                <form action="book_room_process.php" method="POST" class="d-inline mb-3"><input type="hidden" name="room_id" value="<?php echo $room['id']; ?>"><input type="hidden" name="day" value="<?php echo $day; ?>"><input type="hidden" name="timeslot" value="<?php echo $slot; ?>"><button type="submit" class="btn btn-success btn-sm p-0 px-1" style="font-size: 0.7em;">Book</button></form>
                                             <?php endif; ?>
                                         </div>
                                     <?php endforeach; ?>

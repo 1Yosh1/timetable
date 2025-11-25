@@ -7,7 +7,7 @@
     --bg-accent-hover: linear-gradient(135deg, #1d4ed8, #6d28d9);
     --border-color: #30363d;
     --divider-color: #3c434c;
-    --text-primary: #e6edf3;
+    --text-primary: #30363d;
     --text-secondary: #9ca3af;
     --text-faint: #6b7280;
     --text-hover: #ffffff;
@@ -133,7 +133,7 @@ a:focus-visible {
     background: var(--bg-alt);
 }
 .table tbody tr {
-    background: transparent;
+    background: var(--text-primary);
     transition: background var(--transition-fast);
 }
 .table tbody tr:hover {
