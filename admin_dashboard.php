@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/app/bootstrap.php';
 require_once 'app/csrf.php';
+require_once __DIR__ . '/app/Auth.php';
 if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
 if (
     !(
@@ -11,6 +12,9 @@ if (
     header("Location: admin_login.php");
     exit();
 }
+
+regenerateSession();
+
 require_once 'db_config.php';
 use App\Domain\DayOfWeek;
 use App\Domain\TimeSlot;
@@ -32,7 +36,7 @@ $timeslots = ["09:00-10:00","10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:
 
 $current_page_name = basename($_SERVER['PHP_SELF']);
 $current_sub_page  = $_GET['page'] ?? 'home';
-$management_pages  = ['users','courses','schedules','requests'];
+$management_pages  = ['users','courses','schedules','requests', 'reports'];
 $is_management_active = ($current_page_name === 'admin_dashboard.php' && in_array($current_sub_page, $management_pages, true));
 
 if ($page === 'home') {
@@ -68,6 +72,21 @@ if ($page === 'schedules') {
          ORDER BY FIELD(s.day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday'), s.timeslot, c.name"
     )->fetch_all(MYSQLI_ASSOC);
 }
+
+if ($page === 'reports') {
+    $enrollment_stats = $conn->query(
+        "SELECT c.name, COUNT(e.student_id) as enrollment_count
+         FROM courses c
+         LEFT JOIN enrollments e ON c.id = e.course_id
+         GROUP BY c.id
+         ORDER BY enrollment_count DESC, c.name ASC"
+    )->fetch_all(MYSQLI_ASSOC);
+
+    $total_slots_per_room = count($weekdays) * count($timeslots);
+    $room_utilization = $conn->query("SELECT r.name, COUNT(s.id) as booked_slots FROM rooms r LEFT JOIN schedules s ON r.id = s.room_id GROUP BY r.id ORDER BY r.name ASC")->fetch_all(MYSQLI_ASSOC);
+
+
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -75,10 +94,8 @@ if ($page === 'schedules') {
     <meta charset="UTF-8">
     <title>Admin Dashboard</title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <!-- Bootstrap & Icons -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <!-- App stylesheet -->
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -91,11 +108,15 @@ if ($page === 'schedules') {
         <li><a href="admin_dashboard.php?page=courses"   class="<?php echo ($current_sub_page=='courses')?'active':''; ?>">Courses</a></li>
         <li><a href="admin_dashboard.php?page=schedules" class="<?php echo ($current_sub_page=='schedules')?'active':''; ?>">Schedules</a></li>
         <li><a href="admin_dashboard.php?page=requests"  class="<?php echo ($current_sub_page=='requests')?'active':''; ?>">Enrollment Requests</a></li>
+        <li><a href="admin_dashboard.php?page=reports"  class="<?php echo ($current_sub_page=='reports')?'active':''; ?>">Reports</a></li>
     </ul>
     <hr style="border-color:#404249;">
     <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
 </div>
 <div class="main-content">
+    <div class="text-right mb-3">
+        <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+    </div>
 <?php if ($page === 'home'): ?>
     <h1 class="mb-4">Dashboard Home</h1>
     <div class="row">
@@ -341,10 +362,53 @@ if ($page === 'schedules') {
             </table>
         </div>
     </div>
+
+<?php elseif ($page === 'reports'): ?>
+    <h1 class="mb-4">System Reports</h1>
+    <div class="row">
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">Course Enrollment Statistics</div>
+                <div class="card-body table-responsive" style="max-height: 400px;">
+                    <table class="table table-hover">
+                        <thead><tr><th>Course Name</th><th class="text-center">Enrollments</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($enrollment_stats as $stat): ?>
+                            <tr><td><?php echo htmlspecialchars($stat['name']); ?></td><td class="text-center"><?php echo $stat['enrollment_count']; ?></td></tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header">Room Utilization</div>
+                <div class="card-body table-responsive" style="max-height: 400px;">
+                    <table class="table table-hover">
+                        <thead><tr><th>Room Name</th><th class="text-center">Utilization</th></tr></thead>
+                        <tbody>
+                        <?php foreach ($room_utilization as $stat):
+                            $percentage = $total_slots_per_room > 0 ? round(($stat['booked_slots'] / $total_slots_per_room) * 100) : 0;
+                        ?>
+                            <tr>
+                                <td><?php echo htmlspecialchars($stat['name']); ?></td>
+                                <td class="text-center">
+                                    <div class="progress" style="height: 20px;">
+                                        <div class="progress-bar" role="progressbar" style="width: <?php echo $percentage; ?>%;" aria-valuenow="<?php echo $percentage; ?>" aria-valuemin="0" aria-valuemax="100"><?php echo $percentage; ?>%</div>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 <?php endif; ?>
 </div>
 
-<!-- Edit User Modal -->
 <div class="modal fade" id="editUserModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog" role="document"><div class="modal-content">
       <form action="manage_admin_tasks.php" method="POST">

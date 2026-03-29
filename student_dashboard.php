@@ -34,24 +34,48 @@ $username = $_SESSION['username'] ?? 'Student';
 $enrollRepo = new EnrollmentRepository();
 $courseRepo = new CourseRepository();
 
-// Single detailed schedule fetch (used for display + conflict map)
 $my_detailed_schedule = $enrollRepo->getDetailedSchedule($conn, $user_id);
 
-// Build conflict map day->timeslot boolean
 $my_schedule = [];
 foreach ($my_detailed_schedule as $row) {
     $my_schedule[$row['day_of_week']][$row['timeslot']] = true;
 }
 
-// Enrollment count + limit
 $enrollment_count = $enrollRepo->countByStudent($conn, $user_id);
 $enrollment_limit = AppConfig::maxCourses();
 
-// Batch load available courses incl. schedules
 $available_courses = $courseRepo->getAvailableWithSchedules($conn, $user_id);
 
-// Enrolled courses (basic listing)
 $enrolled_courses_list = $enrollRepo->getEnrolledCoursesBasic($conn, $user_id);
+
+$stmt_att = $conn->prepare(
+    "SELECT c.name as course_name, a.date, a.status
+     FROM attendance a
+     JOIN schedules s ON a.schedule_id = s.id
+     JOIN courses c ON s.course_id = c.id
+     WHERE a.student_id = ?
+     ORDER BY c.name, a.date DESC"
+);
+$stmt_att->bind_param("i", $user_id);
+$stmt_att->execute();
+$attendance_results = $stmt_att->get_result()->fetch_all(MYSQLI_ASSOC);
+$my_attendance_by_course = [];
+foreach ($attendance_results as $record) { $my_attendance_by_course[$record['course_name']][] = $record; }
+
+$my_announcements = [];
+$enrolled_course_ids = array_column($enrolled_courses_list, 'id');
+if (!empty($enrolled_course_ids)) {
+    $placeholders = implode(',', array_fill(0, count($enrolled_course_ids), '?'));
+    $types = str_repeat('i', count($enrolled_course_ids));
+    $ann_sql = "SELECT an.content, an.created_at, c.name as course_name
+                FROM announcements an JOIN courses c ON an.course_id = c.id
+                WHERE an.course_id IN ($placeholders) ORDER BY an.created_at DESC";
+    $stmt_ann = $conn->prepare($ann_sql);
+    $stmt_ann->bind_param($types, ...$enrolled_course_ids);
+    $stmt_ann->execute();
+    $my_announcements = $stmt_ann->get_result()->fetch_all(MYSQLI_ASSOC);
+}
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -66,13 +90,19 @@ $enrolled_courses_list = $enrollRepo->getEnrolledCoursesBasic($conn, $user_id);
     <div class="container my-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Student Dashboard</h1>
-            <a href="logout.php" class="btn btn-danger">Logout</a>
+            <div>
+                <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+                <a href="profile.php" class="btn btn-secondary">My Profile</a>
+                <a href="logout.php" class="btn btn-danger">Logout</a>
+            </div>
         </div>
 
         <ul class="nav nav-tabs" id="studentTab" role="tablist">
             <li class="nav-item"><a class="nav-link active" id="schedule-tab" data-toggle="tab" href="#schedule" role="tab">My Schedule</a></li>
             <li class="nav-item"><a class="nav-link" id="my-courses-tab" data-toggle="tab" href="#my-courses" role="tab">My Courses</a></li>
             <li class="nav-item"><a class="nav-link" id="enroll-tab" data-toggle="tab" href="#enroll" role="tab">Enroll in New Course</a></li>
+            <li class="nav-item"><a class="nav-link" id="attendance-tab" data-toggle="tab" href="#attendance" role="tab">My Attendance</a></li>
+            <li class="nav-item"><a class="nav-link" id="announcements-tab" data-toggle="tab" href="#announcements" role="tab">Announcements</a></li>
         </ul>
 
         <div class="tab-content bg-white p-4 border border-top-0" id="studentTabContent">
@@ -88,9 +118,9 @@ $enrolled_courses_list = $enrollRepo->getEnrolledCoursesBasic($conn, $user_id);
                             <?php foreach ($my_detailed_schedule as $course): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($course['course_name']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['timeslot']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['day_of_week']); ?></td>
-                                    <td><?php echo htmlspecialchars($course['room_name']); ?></td>
+                                    <td ><?php echo htmlspecialchars($course['timeslot']); ?></td>
+                                    <td ><?php echo htmlspecialchars($course['day_of_week']); ?></td>
+                                    <td ><?php echo htmlspecialchars($course['room_name']); ?></td>
                                 </tr>
                             <?php endforeach; ?>
                             </tbody>
@@ -144,6 +174,58 @@ $enrolled_courses_list = $enrollRepo->getEnrolledCoursesBasic($conn, $user_id);
                     <?php endforeach; ?>
                     </tbody></table>
                 </div></div>
+            </div>
+
+            <div class="tab-pane fade" id="attendance" role="tabpanel">
+                <h3 class="mb-3">Your Attendance Records</h3>
+                <?php if (empty($my_attendance_by_course)): ?>
+                    <p class="text-secondary text-center my-3">No attendance has been recorded for you yet.</p>
+                <?php else: ?>
+                    <?php foreach ($my_attendance_by_course as $course_name => $records): ?>
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5><?php echo htmlspecialchars($course_name); ?></h5>
+                                    <?php
+                                        $total = count($records);
+                                        $present = count(array_filter($records, fn($r) => $r['status'] === 'present'));
+                                        $percentage = $total > 0 ? round(($present / $total) * 100) : 0;
+                                    ?>
+                                    <span class="font-weight-bold">Attendance: <?php echo $percentage; ?>%</span>
+                                </div>
+                            </div>
+                            <div class="card-body table-responsive" style="max-height: 300px;">
+                                <table class="table table-sm table-hover">
+                                    <thead><tr><th>Date</th><th class="text-center">Status</th></tr></thead>
+                                    <tbody>
+                                    <?php foreach ($records as $record): ?>
+                                        <tr><td><?php echo htmlspecialchars($record['date']); ?></td><td class="text-center"><span class="status-<?php echo strtolower($record['status']); ?>"><?php echo ucfirst($record['status']); ?></span></td></tr>
+                                    <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
+            <div class="tab-pane fade" id="announcements" role="tabpanel">
+                <h3 class="mb-3">Course Announcements</h3>
+                <?php if (empty($my_announcements)): ?>
+                    <p class="text-secondary text-center my-3">No announcements from your teachers yet.</p>
+                <?php else: ?>
+                    <div class="list-group">
+                    <?php foreach ($my_announcements as $ann): ?>
+                        <div class="list-group-item list-group-item-action flex-column align-items-start">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h5 class="mb-1"><?php echo htmlspecialchars($ann['course_name']); ?></h5>
+                                <small class="text-muted"><?php echo date('F j, Y', strtotime($ann['created_at'])); ?></small>
+                            </div>
+                            <p class="mb-1"><?php echo nl2br(htmlspecialchars($ann['content'])); ?></p>
+                        </div>
+                    <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

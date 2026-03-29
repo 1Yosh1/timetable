@@ -1,5 +1,48 @@
 document.addEventListener('DOMContentLoaded', function() {
 
+    // --- Theme Toggle ---
+    const themeToggle = document.getElementById('theme-toggle');
+    const body = document.body;
+
+    const applyTheme = (theme) => {
+        if (theme === 'dark') {
+            body.dataset.theme = 'dark';
+            if (themeToggle) themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
+        } else {
+            delete body.dataset.theme;
+            if (themeToggle) themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
+        }
+    };
+
+    applyTheme(localStorage.getItem('theme'));
+
+    if (themeToggle) {
+        themeToggle.addEventListener('click', () => {
+            const isDark = body.dataset.theme === 'dark';
+            if (isDark) {
+                localStorage.removeItem('theme');
+                applyTheme('light');
+            } else {
+                localStorage.setItem('theme', 'dark');
+                applyTheme('dark');
+            }
+        });
+    }
+
+    /**
+     * Displays a toast notification at the top-right of the screen.
+     * @param {string} message The message to display.
+     * @param {boolean} isSuccess True for a green success toast, false for a red error toast.
+     */
+    function showToast(message, isSuccess = true) {
+        const toast = document.createElement('div');
+        toast.className = `alert-toast ${isSuccess ? 'alert-success' : 'alert-danger'}`;
+        toast.setAttribute('role', 'alert');
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => { toast.classList.add('fade-out'); toast.addEventListener('transitionend', () => toast.remove()); }, 5000);
+    }
+
     if (document.getElementById('adminTabContent')) {
         $('.edit-user-btn').on('click', function() {
             $('#edit-user-id').val($(this).data('id'));
@@ -17,6 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (document.getElementById('teacherTabContent')) {
+        const teacherTabContent = document.getElementById('teacherTabContent');
         const roomSearchInput = document.getElementById('roomSearchInput');
         if (roomSearchInput) {
             roomSearchInput.addEventListener('keyup', function() {
@@ -36,55 +80,156 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
+
+        $('#bookRoomModal').on('show.bs.modal', function (event) {
+            const button = $(event.relatedTarget); 
+            const roomId = button.data('room-id');
+            const roomName = button.data('room-name');
+            const day = button.data('day');
+            const timeslot = button.data('timeslot');
+
+            const modal = $(this);
+            modal.find('#modal-room-name').text(roomName);
+            modal.find('#modal-day').text(day);
+            modal.find('#modal-timeslot').text(timeslot);
+            
+            modal.find('#modal-room-id').val(roomId);
+            modal.find('#modal-form-day').val(day);
+            modal.find('#modal-form-timeslot').val(timeslot);
+            modal.find('#modal-course-id').val(''); // Reset dropdown
+        });
+
+        $('#bookRoomForm').on('submit', async function(event) {
+            event.preventDefault();
+            const form = $(this);
+            const submitButton = form.find('button[type="submit"]');
+            submitButton.prop('disabled', true).text('Booking...');
+
+            const formData = new FormData(this);
+            const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+            formData.append('csrf_token', csrf);
+
+            try {
+                const response = await fetch('manage_teacher_tasks.php', { method: 'POST', body: formData });
+                const result = await response.json();
+
+                if (result.success) {
+                    showToast(result.message || 'Room booked successfully!', true);
+                    const buttonToUpdate = $(`button[data-room-id='${formData.get('room_id')}'][data-day='${formData.get('day')}'][data-timeslot='${formData.get('timeslot')}']`);
+                    if (buttonToUpdate.length) {
+                        const courseName = $('#modal-course-id option:selected').text();
+                        const newContent = `<div class="font-weight-bold" style="font-size: 0.8em;">${courseName}</div>`;
+                        const parentDiv = buttonToUpdate.parent();
+                        parentDiv.removeClass('availability-free').addClass('availability-booked');
+                        parentDiv.html(`<small>${formData.get('timeslot')}</small>${newContent}`);
+                    }
+                    $('#bookRoomModal').modal('hide');
+                } else {
+                    showToast(result.message || 'Failed to book room.', false);
+                }
+            } catch (error) {
+                console.error('Booking Error:', error);
+                showToast('A network error occurred during booking.', false);
+            } finally {
+                submitButton.prop('disabled', false).text('Confirm & Book');
+            }
+        });
+
+        teacherTabContent.addEventListener('click', async function(event) {
+            if (event.target.matches('.delete-announcement-btn')) {
+                const button = event.target;
+                const announcementId = button.dataset.announcementId;
+
+                if (!confirm('Are you sure you want to delete this announcement?')) {
+                    return;
+                }
+
+                button.disabled = true;
+
+                const formData = new FormData();
+                formData.append('action', 'delete_announcement');
+                formData.append('announcement_id', announcementId);
+                const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+                formData.append('csrf_token', csrf);
+
+                try {
+                    const response = await fetch('manage_teacher_tasks.php', { method: 'POST', body: formData });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        showToast(result.message, true);
+                        button.closest('.announcement-item').remove();
+                    } else {
+                        showToast(result.message, false);
+                        button.disabled = false;
+                    }
+                } catch (error) {
+                    console.error('Delete announcement error:', error);
+                    showToast('A network error occurred.', false);
+                    button.disabled = false;
+                }
+            }
+        });
     }
 
 const studentDashboard = document.getElementById('studentTabContent');
 if (studentDashboard) {
-    studentDashboard.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('enroll-btn')) {
-            const courseId = e.target.dataset.courseId;
-            handleEnrollment('enroll', courseId);
-        }
-        if (e.target && e.target.classList.contains('unenroll-btn')) {
-            if (confirm('Are you sure you want to unenroll from this course?')) {
-                const courseId = e.target.dataset.courseId;
-                handleEnrollment('unenroll', courseId);
+    studentDashboard.addEventListener('click', function(event) {
+        const button = event.target;
+        if (button.matches('.enroll-btn, .unenroll-btn, .request-approval-btn')) {
+            if (button.classList.contains('unenroll-btn')) {
+                if (!confirm('Are you sure you want to unenroll from this course?')) {
+                    return;
+                }
             }
-        }
-        if (e.target && e.target.classList.contains('request-approval-btn')) {
-            const courseId = e.target.dataset.courseId;
-            handleEnrollment('request_approval', courseId);
+            handleEnrollment(event);
         }
     });
 }
 
-async function handleEnrollment(action, courseId) {
+async function handleEnrollment(event) {
+    const button = event.target;
+    const courseId = button.dataset.courseId;
+    let action = '';
+
+    if (button.classList.contains('enroll-btn')) action = 'enroll';
+    else if (button.classList.contains('unenroll-btn')) action = 'unenroll';
+    else if (button.classList.contains('request-approval-btn')) action = 'request_approval';
+
+    if (!action) return;
+
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const formData = new FormData();
     formData.append('action', action);
     formData.append('course_id', courseId);
     formData.append('csrf_token', csrf);
 
+    button.disabled = true; // Disable button during request
+
     try {
-        const response = await fetch('manage_enrollment.php', {
-            method: 'POST',
-            body: formData
-        });
+        const response = await fetch('manage_enrollment.php', { method: 'POST', body: formData });
         const result = await response.json();
 
         if (result.success) {
-            if(action === 'request_approval') {
-                alert('Your request has been sent to the administrator for approval.');
-                document.querySelector(`[data-course-id="${courseId}"]`).disabled = true;
-                document.querySelector(`[data-course-id="${courseId}"]`).textContent = 'Pending';
-            } else {
-                location.reload();}
+            showToast(result.message || 'Action successful!', true);
+            if (action === 'enroll') {
+                button.textContent = 'Enrolled';
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-success', 'disabled');
+            } else if (action === 'unenroll') {
+                button.closest('tr').remove();
+            } else if (action === 'request_approval') {
+                button.textContent = 'Pending';
+                button.classList.add('disabled');
+            }
         } else {
-            alert('An error occurred: ' + (result.message || 'Unknown error.'));
+            showToast(result.message || 'An error occurred.', false);
+            button.disabled = false; // Re-enable button on failure
         }
     } catch (error) {
         console.error('AJAX Error:', error);
-        alert('A network error occurred. Please try again.');
+        showToast('A network error occurred. Please try again.', false);
+        button.disabled = false; // Re-enable button on network error
     }
 }
 
@@ -137,5 +282,8 @@ async function handleEnrollment(action, courseId) {
             el.addEventListener('change', debouncedConflict);
         });
     }
+
+    // The toast that loads with the page (from PHP redirects)
+    document.querySelectorAll('.alert-toast').forEach(toast => showToast(toast.textContent, toast.classList.contains('alert-success')));
 
 });
