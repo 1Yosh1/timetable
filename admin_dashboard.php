@@ -36,7 +36,7 @@ $timeslots = ["09:00-10:00","10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:
 
 $current_page_name = basename($_SERVER['PHP_SELF']);
 $current_sub_page  = $_GET['page'] ?? 'home';
-$management_pages  = ['users','courses','schedules','requests', 'reports'];
+$management_pages  = ['users','courses','schedules','requests', 'reports', 'schedule_requests'];
 $is_management_active = ($current_page_name === 'admin_dashboard.php' && in_array($current_sub_page, $management_pages, true));
 
 if ($page === 'home') {
@@ -61,6 +61,37 @@ if ($page === 'requests') {
          WHERE pr.status='pending'
          ORDER BY pr.request_date ASC"
     )->fetch_all(MYSQLI_ASSOC);
+}
+
+if ($page === 'schedule_requests') {
+    $pending_schedules = $conn->query(
+        "SELECT ps.id, ps.course_id, c.name AS course_name, r.name AS room_name, ps.day_of_week, ps.timeslot, u.username AS teacher_name
+         FROM pending_schedules ps
+         JOIN courses c ON ps.course_id = c.id
+         JOIN rooms r ON ps.room_id = r.id
+         JOIN users u ON ps.teacher_id = u.id
+         WHERE ps.status='pending'
+         ORDER BY ps.request_date ASC"
+    )->fetch_all(MYSQLI_ASSOC);
+
+    // Calculate conflicts for each request
+    foreach ($pending_schedules as &$ps) {
+        $stmt_conflict = $conn->prepare(
+            "SELECT c.name as course_name, COUNT(DISTINCT e1.student_id) as student_count
+             FROM schedules s
+             JOIN courses c ON s.course_id = c.id
+             JOIN enrollments e1 ON e1.course_id = s.course_id
+             JOIN enrollments e2 ON e2.course_id = ?
+             WHERE s.day_of_week = ?
+               AND s.timeslot = ?
+               AND e1.student_id = e2.student_id
+             GROUP BY c.id"
+        );
+        $stmt_conflict->bind_param("iss", $ps['course_id'], $ps['day_of_week'], $ps['timeslot']);
+        $stmt_conflict->execute();
+        $ps['conflicts'] = $stmt_conflict->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+    unset($ps);
 }
 
 if ($page === 'schedules') {
@@ -108,6 +139,7 @@ if ($page === 'reports') {
         <li><a href="admin_dashboard.php?page=courses"   class="<?php echo ($current_sub_page=='courses')?'active':''; ?>">Courses</a></li>
         <li><a href="admin_dashboard.php?page=schedules" class="<?php echo ($current_sub_page=='schedules')?'active':''; ?>">Schedules</a></li>
         <li><a href="admin_dashboard.php?page=requests"  class="<?php echo ($current_sub_page=='requests')?'active':''; ?>">Enrollment Requests</a></li>
+        <li><a href="admin_dashboard.php?page=schedule_requests" class="<?php echo ($current_sub_page=='schedule_requests')?'active':''; ?>">Schedule Requests</a></li>
         <li><a href="admin_dashboard.php?page=reports"  class="<?php echo ($current_sub_page=='reports')?'active':''; ?>">Reports</a></li>
     </ul>
     <hr style="border-color:#404249;">
@@ -352,6 +384,67 @@ if ($page === 'reports') {
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                                 <input type="hidden" name="action" value="deny_enrollment">
                                 <input type="hidden" name="source_page" value="requests">
+                                <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
+                                <button class="btn btn-danger btn-sm">Deny</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<?php elseif ($page === 'schedule_requests'): ?>
+    <h1 class="mb-4">Pending Schedule Requests</h1>
+    <div class="card">
+        <div class="card-header">Schedule Requests</div>
+        <div class="card-body table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Course</th>
+                        <th>Room</th>
+                        <th>Day</th>
+                        <th>Timeslot</th>
+                        <th>Requested By</th>
+                        <th>Student Conflicts</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (empty($pending_schedules)): ?>
+                    <tr><td colspan="7" class="text-center text-secondary">No pending schedule requests.</td></tr>
+                <?php else: foreach ($pending_schedules as $req): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($req['course_name']); ?></td>
+                        <td><?php echo htmlspecialchars($req['room_name']); ?></td>
+                        <td><?php echo htmlspecialchars($req['day_of_week']); ?></td>
+                        <td><?php echo htmlspecialchars($req['timeslot']); ?></td>
+                        <td><?php echo htmlspecialchars($req['teacher_name']); ?></td>
+                        <td>
+                            <?php if (empty($req['conflicts'])): ?>
+                                <span class="text-success"><i class="fas fa-check-circle"></i> No conflicts</span>
+                            <?php else: ?>
+                                <div class="text-danger small">
+                                    <?php foreach ($req['conflicts'] as $c): ?>
+                                        <div>⚠️ Conflict: <?php echo $c['student_count']; ?> student(s) also in <strong><?php echo htmlspecialchars($c['course_name']); ?></strong></div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-right">
+                            <form action="manage_admin_tasks.php" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
+                                <input type="hidden" name="action" value="approve_schedule">
+                                <input type="hidden" name="source_page" value="schedule_requests">
+                                <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
+                                <button class="btn btn-success btn-sm">Approve</button>
+                            </form>
+                            <form action="manage_admin_tasks.php" method="POST" class="d-inline delete-form">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
+                                <input type="hidden" name="action" value="deny_schedule">
+                                <input type="hidden" name="source_page" value="schedule_requests">
                                 <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
                                 <button class="btn btn-danger btn-sm">Deny</button>
                             </form>

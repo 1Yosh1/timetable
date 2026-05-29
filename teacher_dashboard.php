@@ -87,6 +87,18 @@ if (!empty($course_ids)) {
     foreach ($announcements_results as $announcement) { $all_announcements[$announcement['course_id']][] = $announcement; }
 }
 
+$stmt_pending_bookings = $conn->prepare(
+    "SELECT ps.id, c.name as course_name, r.name as room_name, ps.day_of_week, ps.timeslot, ps.status
+     FROM pending_schedules ps
+     JOIN courses c ON ps.course_id = c.id
+     JOIN rooms r ON ps.room_id = r.id
+     WHERE ps.teacher_id = ?
+     ORDER BY ps.request_date DESC"
+);
+$stmt_pending_bookings->bind_param("i", $teacher_id);
+$stmt_pending_bookings->execute();
+$my_pending_bookings = $stmt_pending_bookings->get_result()->fetch_all(MYSQLI_ASSOC);
+
 $rooms = $conn->query("SELECT id, name FROM rooms ORDER BY name")->fetch_all(MYSQLI_ASSOC);
 $booked_slots = [];
 $booked_sql = "SELECT room_id, day_of_week, timeslot, c.name as course_name 
@@ -255,6 +267,40 @@ $timeslots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00
             </div>
 
             <div class="tab-pane fade" id="rooms" role="tabpanel">
+                <h3 class="mb-3">Your Pending Booking Requests</h3>
+                <div class="card mb-4">
+                    <div class="card-body table-responsive">
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Course</th>
+                                    <th>Room</th>
+                                    <th>Day</th>
+                                    <th>Timeslot</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php if (empty($my_pending_bookings)): ?>
+                                <tr><td colspan="5" class="text-center text-secondary">No pending booking requests.</td></tr>
+                            <?php else: foreach ($my_pending_bookings as $pb): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($pb['course_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($pb['room_name']); ?></td>
+                                    <td><?php echo htmlspecialchars($pb['day_of_week']); ?></td>
+                                    <td><?php echo htmlspecialchars($pb['timeslot']); ?></td>
+                                    <td>
+                                        <span class="badge badge-<?php echo $pb['status'] === 'approved' ? 'success' : ($pb['status'] === 'denied' ? 'danger' : 'warning'); ?>">
+                                            <?php echo ucfirst($pb['status']); ?>
+                                        </span>
+                                    </td>
+                                </tr>
+                            <?php endforeach; endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <h3 class="mb-3">Room Availability & Booking</h3>
                 <div class="form-group"><input type="text" id="roomSearchInput" class="form-control" placeholder="Search for a room name..."></div>
                  <div class="table-responsive">

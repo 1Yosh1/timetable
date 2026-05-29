@@ -115,14 +115,14 @@ if ($action === 'book_room') {
         exit;
     }
 
-    // 4. Insert the new schedule
-    $stmt = $conn->prepare("INSERT INTO schedules (course_id, room_id, day_of_week, timeslot) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("iiss", $course_id, $room_id, $day, $timeslot);
+    // 4. Insert the pending schedule request
+    $stmt = $conn->prepare("INSERT INTO pending_schedules (course_id, room_id, day_of_week, timeslot, teacher_id) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("iissi", $course_id, $room_id, $day, $timeslot, $teacher_id);
 
     if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Room booked successfully!']);
+        echo json_encode(['success' => true, 'message' => 'Room booking request submitted for admin approval!']);
     } else {
-        echo json_encode(['success' => false, 'message' => 'A database error occurred while booking the room.']);
+        echo json_encode(['success' => false, 'message' => 'A database error occurred while submitting the booking request.']);
     }
     exit;
 }

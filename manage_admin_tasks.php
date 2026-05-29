@@ -236,6 +236,95 @@ switch ($action) {
         $msg = 'Enrollment denied';
         break;
 
+    /* --------------- SCHEDULE APPROVALS ---------------- */
+    case 'approve_schedule':
+        $reqId = (int)($_POST['request_id'] ?? 0);
+        if ($reqId <= 0) { $success=false; $msg='Invalid request ID'; break; }
+
+        // Fetch the request
+        $p = $conn->prepare("SELECT course_id, room_id, day_of_week, timeslot FROM pending_schedules WHERE id=? AND status='pending' LIMIT 1");
+        $p->bind_param('i', $reqId);
+        $p->execute();
+        $row = $p->get_result()->fetch_assoc();
+        if (!$row) { $success=false; $msg='Request not found or already processed'; break; }
+
+        $courseId = (int)$row['course_id'];
+        $roomId = (int)$row['room_id'];
+        $day = $row['day_of_week'];
+        $slot = $row['timeslot'];
+
+        // Check active conflicts before committing
+        // 1. Room conflict
+        $q1 = $conn->prepare("SELECT id FROM schedules WHERE room_id=? AND day_of_week=? AND timeslot=? LIMIT 1");
+        $q1->bind_param('iss', $roomId, $day, $slot);
+        $q1->execute();
+        if ($q1->get_result()->fetch_row()) {
+            $success=false; $msg='Room is already booked in that slot';
+            break;
+        }
+
+        // 2. Course conflict
+        $q2 = $conn->prepare("SELECT id FROM schedules WHERE course_id=? AND day_of_week=? AND timeslot=? LIMIT 1");
+        $q2->bind_param('iss', $courseId, $day, $slot);
+        $q2->execute();
+        if ($q2->get_result()->fetch_row()) {
+            $success=false; $msg='This course is already scheduled in that slot';
+            break;
+        }
+
+        // 3. Teacher conflict
+        $q3 = $conn->prepare(
+            "SELECT 1
+             FROM schedules s
+             JOIN courses c1 ON c1.id = s.course_id
+             JOIN courses c2 ON c2.id = ?
+             WHERE s.day_of_week=? AND s.timeslot=? AND c1.teacher_id=c2.teacher_id AND c2.teacher_id IS NOT NULL
+             LIMIT 1"
+        );
+        $q3->bind_param('iss', $courseId, $day, $slot);
+        $q3->execute();
+        if ($q3->get_result()->fetch_row()) {
+            $success=false; $msg='The assigned teacher has a time conflict';
+            break;
+        }
+
+        $conn->begin_transaction();
+        try {
+            // Insert schedule
+            $ins = $conn->prepare("INSERT INTO schedules (course_id, room_id, day_of_week, timeslot) VALUES (?,?,?,?)");
+            $ins->bind_param('iiss', $courseId, $roomId, $day, $slot);
+            $ins->execute();
+
+            // Approve current request
+            $up = $conn->prepare("UPDATE pending_schedules SET status='approved' WHERE id=?");
+            $up->bind_param('i', $reqId);
+            $up->execute();
+
+            // Deny any other pending requests for the same room, day, timeslot
+            $deny = $conn->prepare("UPDATE pending_schedules SET status='denied' WHERE room_id=? AND day_of_week=? AND timeslot=? AND status='pending'");
+            $deny->bind_param('iss', $roomId, $day, $slot);
+            $deny->execute();
+
+            $conn->commit();
+            $msg = 'Schedule approved and saved';
+        } catch (mysqli_sql_exception $e) {
+            $conn->rollback();
+            $success = false;
+            $msg = 'Failed to approve schedule due to database error';
+        }
+        break;
+
+    case 'deny_schedule':
+        $reqId = (int)($_POST['request_id'] ?? 0);
+        if ($reqId <= 0) { $success=false; $msg='Invalid request ID'; break; }
+
+        $up = $conn->prepare("UPDATE pending_schedules SET status='denied' WHERE id=? AND status='pending'");
+        $up->bind_param('i', $reqId);
+        $up->execute();
+
+        $msg = $up->affected_rows ? 'Schedule request denied' : 'No changes made';
+        break;
+
     default:
         $success = false;
         $msg = 'Unknown action';
