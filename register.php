@@ -1,3 +1,8 @@
+<?php
+require_once __DIR__ . '/app/bootstrap.php';
+require_once __DIR__ . '/app/csrf.php';
+$token = csrf_token();
+?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -15,6 +20,7 @@
         </div>
         
         <form action="register_process.php" method="POST">
+            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($token); ?>">
             <div class="form-group">
                 <input type="text" name="username" class="form-control" placeholder="Username" required>
             </div>

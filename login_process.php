@@ -2,6 +2,8 @@
 require_once __DIR__ . '/app/bootstrap.php';
 require_once __DIR__ . '/app/csrf.php';
 
+require_once __DIR__ . '/BruteForceProtector.php';
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     exit('Method not allowed');
@@ -21,12 +23,15 @@ if ($username === '' || $password === '' || !in_array($role, ['student','teacher
     exit('Invalid input');
 }
 
+BruteForceProtector::check($username);
+
 $stmt = $conn->prepare("SELECT id, username, password, role FROM users WHERE username=? AND role=? LIMIT 1");
 $stmt->bind_param("ss", $username, $role);
 $stmt->execute();
 $res = $stmt->get_result();
 if ($user = $res->fetch_assoc()) {
     if (password_verify($password, $user['password'])) {
+        BruteForceProtector::registerSuccess($username);
         session_regenerate_id(true);
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['username'] = $user['username'];
@@ -37,5 +42,6 @@ if ($user = $res->fetch_assoc()) {
         exit;
     }
 }
+BruteForceProtector::registerFailure($username);
 http_response_code(401);
 exit('Invalid credentials');
