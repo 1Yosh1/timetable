@@ -1,118 +1,18 @@
-<?php
-require_once __DIR__ . '/app/bootstrap.php';
-require_once 'app/csrf.php';
-require_once __DIR__ . '/app/Auth.php';
-if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
-if (
-    !(
-        isset($_SESSION['admin_id'])
-        || (isset($_SESSION['user_id']) && ($_SESSION['role'] ?? '') === 'admin')
-    )
-) {
-    header("Location: admin_login.php");
-    exit();
-}
-
-regenerateSession();
-
-require_once 'db_config.php';
-use App\Domain\DayOfWeek;
-use App\Domain\TimeSlot;
-$weekdays  = DayOfWeek::all();
-$timeslots = TimeSlot::all();
-
-$csrf = csrf_token();
-$page = $_GET['page'] ?? 'home';
-$conflictFlag = isset($_GET['conflict']) && $_GET['conflict'] == '1';
-
-$users    = $conn->query("SELECT id, username, email, role FROM users WHERE role != 'admin' ORDER BY role, username")->fetch_all(MYSQLI_ASSOC);
-$teachers = $conn->query("SELECT id, username FROM users WHERE role = 'teacher' ORDER BY username")->fetch_all(MYSQLI_ASSOC);
-$students = $conn->query("SELECT id, username FROM users WHERE role = 'student' ORDER BY username")->fetch_all(MYSQLI_ASSOC);
-$courses  = $conn->query("SELECT c.id, c.name, c.description, c.credits, u.username AS teacher_name FROM courses c LEFT JOIN users u ON c.teacher_id = u.id ORDER BY c.name")->fetch_all(MYSQLI_ASSOC);
-$rooms    = $conn->query("SELECT id, name FROM rooms ORDER BY name")->fetch_all(MYSQLI_ASSOC);
-
-$weekdays  = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
-$timeslots = ["09:00-10:00","10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:00","14:00-15:00","15:00-16:00","16:00-17:00"];
-
-$current_page_name = basename($_SERVER['PHP_SELF']);
-$current_sub_page  = $_GET['page'] ?? 'home';
-$management_pages  = ['users','courses','schedules','requests', 'reports'];
-$is_management_active = ($current_page_name === 'admin_dashboard.php' && in_array($current_sub_page, $management_pages, true));
-
-if ($page === 'home') {
-    $schedule_data = [];
-    $schedule_sql = "SELECT s.day_of_week, s.timeslot, c.name AS course_name, r.name AS room_name, u.username as teacher_name
-                     FROM schedules s
-                     JOIN courses c ON s.course_id = c.id
-                     JOIN rooms r ON s.room_id = r.id
-                     LEFT JOIN users u on c.teacher_id = u.id";
-    $schedule_result = $conn->query($schedule_sql);
-    while ($row = $schedule_result->fetch_assoc()) {
-        $schedule_data[$row['day_of_week']][$row['timeslot']][] = $row;
-    }
-}
-
-if ($page === 'requests') {
-    $pending_requests = $conn->query(
-        "SELECT pr.id, u.username, c.name AS course_name, pr.request_date
-         FROM pending_enrollments pr
-         JOIN users u ON pr.student_id = u.id
-         JOIN courses c ON pr.course_id = c.id
-         WHERE pr.status='pending'
-         ORDER BY pr.request_date ASC"
-    )->fetch_all(MYSQLI_ASSOC);
-}
-
-if ($page === 'schedules') {
-    $schedules = $conn->query(
-        "SELECT s.id, c.name AS course_name, r.name AS room_name, s.day_of_week, s.timeslot
-         FROM schedules s
-         JOIN courses c ON s.course_id = c.id
-         JOIN rooms r ON s.room_id = r.id
-         ORDER BY FIELD(s.day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday'), s.timeslot, c.name"
-    )->fetch_all(MYSQLI_ASSOC);
-}
-
-if ($page === 'reports') {
-    $enrollment_stats = $conn->query(
-        "SELECT c.name, COUNT(e.student_id) as enrollment_count
-         FROM courses c
-         LEFT JOIN enrollments e ON c.id = e.course_id
-         GROUP BY c.id
-         ORDER BY enrollment_count DESC, c.name ASC"
-    )->fetch_all(MYSQLI_ASSOC);
-
-    $total_slots_per_room = count($weekdays) * count($timeslots);
-    $room_utilization = $conn->query("SELECT r.name, COUNT(s.id) as booked_slots FROM rooms r LEFT JOIN schedules s ON r.id = s.room_id GROUP BY r.id ORDER BY r.name ASC")->fetch_all(MYSQLI_ASSOC);
-
-
-}
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Admin Dashboard</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-    <link rel="stylesheet" href="css/styles.css">
-</head>
-<body>
 <div class="sidebar">
     <h3 class="sidebar-header">Admin Panel</h3>
-    <a href="admin_dashboard.php?page=home" class="<?php echo ($current_sub_page=='home')?'active':''; ?>"><i class="fas fa-home"></i> Home</a>
+    <a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=home" class="<?php echo ($current_sub_page=='home')?'active':''; ?>"><i class="fas fa-home"></i> Home</a>
     <a href="#managementSubmenu" data-toggle="collapse" aria-expanded="<?php echo $is_management_active?'true':'false'; ?>" class="dropdown-toggle"><i class="fas fa-tasks"></i> Management</a>
     <ul class="collapse list-unstyled <?php echo $is_management_active?'show':''; ?>" id="managementSubmenu">
-        <li><a href="admin_dashboard.php?page=users"     class="<?php echo ($current_sub_page=='users')?'active':''; ?>">Users</a></li>
-        <li><a href="admin_dashboard.php?page=courses"   class="<?php echo ($current_sub_page=='courses')?'active':''; ?>">Courses</a></li>
-        <li><a href="admin_dashboard.php?page=schedules" class="<?php echo ($current_sub_page=='schedules')?'active':''; ?>">Schedules</a></li>
-        <li><a href="admin_dashboard.php?page=requests"  class="<?php echo ($current_sub_page=='requests')?'active':''; ?>">Enrollment Requests</a></li>
-        <li><a href="admin_dashboard.php?page=reports"  class="<?php echo ($current_sub_page=='reports')?'active':''; ?>">Reports</a></li>
+        <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=users"     class="<?php echo ($current_sub_page=='users')?'active':''; ?>">Users</a></li>
+        <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=courses"   class="<?php echo ($current_sub_page=='courses')?'active':''; ?>">Courses</a></li>
+        <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=schedules" class="<?php echo ($current_sub_page=='schedules')?'active':''; ?>">Schedules</a></li>
+        <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=requests"  class="<?php echo ($current_sub_page=='requests')?'active':''; ?>">Enrollment Requests</a></li>
+        <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=reports"  class="<?php echo ($current_sub_page=='reports')?'active':''; ?>">Reports</a></li>
     </ul>
     <hr style="border-color:#404249;">
-    <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    <a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
 </div>
+
 <div class="main-content">
     <div class="text-right mb-3">
         <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
@@ -157,7 +57,7 @@ if ($page === 'reports') {
     <div class="card mb-4">
         <div class="card-header">Add New User</div>
         <div class="card-body">
-            <form action="manage_admin_tasks.php" method="POST" class="form-inline">
+            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="form-inline">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                 <input type="hidden" name="action" value="add_user">
                 <input type="hidden" name="source_page" value="users">
@@ -192,7 +92,7 @@ if ($page === 'reports') {
                                         data-username="<?php echo htmlspecialchars($user['username']); ?>"
                                         data-email="<?php echo htmlspecialchars($user['email']); ?>"
                                         data-role="<?php echo $user['role']; ?>">Edit</button>
-                                <form action="manage_admin_tasks.php" method="POST" class="delete-form m-0">
+                                <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="delete-form m-0">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                                     <input type="hidden" name="action" value="delete_user">
                                     <input type="hidden" name="source_page" value="users">
@@ -213,7 +113,7 @@ if ($page === 'reports') {
     <div class="card mb-4">
         <div class="card-header">Create New Course</div>
         <div class="card-body">
-            <form action="manage_admin_tasks.php" method="POST">
+            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                 <input type="hidden" name="action" value="add_course">
                 <input type="hidden" name="source_page" value="courses">
@@ -237,7 +137,7 @@ if ($page === 'reports') {
                         <td><?php echo htmlspecialchars($course['name']); ?></td>
                         <td><?php echo htmlspecialchars($course['teacher_name'] ?? 'Not Assigned'); ?></td>
                         <td class="text-center">
-                            <form action="manage_admin_tasks.php" method="POST" class="form-inline justify-content-center">
+                            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="form-inline justify-content-center">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                                 <input type="hidden" name="action" value="assign_teacher">
                                 <input type="hidden" name="source_page" value="courses">
@@ -258,11 +158,11 @@ if ($page === 'reports') {
 
 <?php elseif ($page === 'schedules'): ?>
     <h1 class="mb-4">Schedule Management</h1>
-    <?php if ($conflictFlag): ?><div class="alert alert-danger">Schedule conflict: room/time already in use.</div><?php endif; ?>
+    <?php if (isset($conflictFlag) && $conflictFlag): ?><div class="alert alert-danger">Schedule conflict: room/time already in use.</div><?php endif; ?>
     <div class="card mb-3">
         <div class="card-header">Create New Class Schedule</div>
         <div class="card-body">
-            <form action="manage_admin_tasks.php" method="POST" class="form-row align-items-end">
+            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="form-row align-items-end">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                 <input type="hidden" name="action" value="add_schedule">
                 <input type="hidden" name="source_page" value="schedules">
@@ -341,14 +241,14 @@ if ($page === 'reports') {
                         <td><?php echo htmlspecialchars($req['course_name']); ?></td>
                         <td><?php echo htmlspecialchars($req['request_date']); ?></td>
                         <td class="text-right">
-                            <form action="manage_admin_tasks.php" method="POST" class="d-inline">
+                            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="d-inline">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                                 <input type="hidden" name="action" value="approve_enrollment">
                                 <input type="hidden" name="source_page" value="requests">
                                 <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
                                 <button class="btn btn-success btn-sm">Approve</button>
                             </form>
-                            <form action="manage_admin_tasks.php" method="POST" class="d-inline delete-form">
+                            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="d-inline delete-form">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                                 <input type="hidden" name="action" value="deny_enrollment">
                                 <input type="hidden" name="source_page" value="requests">
@@ -411,7 +311,7 @@ if ($page === 'reports') {
 
 <div class="modal fade" id="editUserModal" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog" role="document"><div class="modal-content">
-      <form action="manage_admin_tasks.php" method="POST">
+      <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST">
           <div class="modal-header">
               <h5 class="modal-title">Edit User</h5>
               <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
@@ -439,9 +339,4 @@ if ($page === 'reports') {
   </div></div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-<script src="js/script.js"></script>
-</body>
-</html>
+<div id="adminTabContent"></div>
