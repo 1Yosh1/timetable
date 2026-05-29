@@ -114,16 +114,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const result = await response.json();
 
                 if (result.success) {
-                    showToast(result.message || 'Room booked successfully!', true);
-                    const buttonToUpdate = $(`button[data-room-id='${formData.get('room_id')}'][data-day='${formData.get('day')}'][data-timeslot='${formData.get('timeslot')}']`);
-                    if (buttonToUpdate.length) {
-                        const courseName = $('#modal-course-id option:selected').text();
-                        const newContent = `<div class="font-weight-bold" style="font-size: 0.8em;">${courseName}</div>`;
-                        const parentDiv = buttonToUpdate.parent();
-                        parentDiv.removeClass('availability-free').addClass('availability-booked');
-                        parentDiv.html(`<small>${formData.get('timeslot')}</small>${newContent}`);
-                    }
+                    showToast(result.message || 'Room booking request submitted for admin approval!', true);
                     $('#bookRoomModal').modal('hide');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                 } else {
                     showToast(result.message || 'Failed to book room.', false);
                 }

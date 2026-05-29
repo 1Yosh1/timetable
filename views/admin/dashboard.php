@@ -7,6 +7,7 @@
         <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=courses"   class="<?php echo ($current_sub_page=='courses')?'active':''; ?>">Courses</a></li>
         <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=schedules" class="<?php echo ($current_sub_page=='schedules')?'active':''; ?>">Schedules</a></li>
         <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=requests"  class="<?php echo ($current_sub_page=='requests')?'active':''; ?>">Enrollment Requests</a></li>
+        <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=schedule_requests" class="<?php echo ($current_sub_page=='schedule_requests')?'active':''; ?>">Schedule Requests</a></li>
         <li><a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=reports"  class="<?php echo ($current_sub_page=='reports')?'active':''; ?>">Reports</a></li>
     </ul>
     <hr style="border-color:#404249;">
@@ -252,6 +253,67 @@
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
                                 <input type="hidden" name="action" value="deny_enrollment">
                                 <input type="hidden" name="source_page" value="requests">
+                                <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
+                                <button class="btn btn-danger btn-sm">Deny</button>
+                            </form>
+                        </td>
+                    </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<?php elseif ($page === 'schedule_requests'): ?>
+    <h1 class="mb-4">Pending Schedule Requests</h1>
+    <div class="card">
+        <div class="card-header">Schedule Requests</div>
+        <div class="card-body table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Course</th>
+                        <th>Room</th>
+                        <th>Day</th>
+                        <th>Timeslot</th>
+                        <th>Requested By</th>
+                        <th>Student Conflicts</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if (empty($pending_schedules)): ?>
+                    <tr><td colspan="7" class="text-center text-secondary">No pending schedule requests.</td></tr>
+                <?php else: foreach ($pending_schedules as $req): ?>
+                    <tr>
+                        <td><?php echo htmlspecialchars($req['course_name']); ?></td>
+                        <td><?php echo htmlspecialchars($req['room_name']); ?></td>
+                        <td><?php echo htmlspecialchars($req['day_of_week']); ?></td>
+                        <td><?php echo htmlspecialchars($req['timeslot']); ?></td>
+                        <td><?php echo htmlspecialchars($req['teacher_name']); ?></td>
+                        <td>
+                            <?php if (empty($req['conflicts'])): ?>
+                                <span class="text-success"><i class="fas fa-check-circle"></i> No conflicts</span>
+                            <?php else: ?>
+                                <div class="text-danger small">
+                                    <?php foreach ($req['conflicts'] as $c): ?>
+                                        <div>⚠️ Conflict: <?php echo $c['student_count']; ?> student(s) also in <strong><?php echo htmlspecialchars($c['course_name']); ?></strong></div>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="text-right">
+                            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
+                                <input type="hidden" name="action" value="approve_schedule">
+                                <input type="hidden" name="source_page" value="schedule_requests">
+                                <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
+                                <button class="btn btn-success btn-sm">Approve</button>
+                            </form>
+                            <form action="<?php echo htmlspecialchars($baseUri ?? ''); ?>/manage_admin_tasks.php" method="POST" class="d-inline delete-form">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf); ?>">
+                                <input type="hidden" name="action" value="deny_schedule">
+                                <input type="hidden" name="source_page" value="schedule_requests">
                                 <input type="hidden" name="request_id" value="<?php echo $req['id']; ?>">
                                 <button class="btn btn-danger btn-sm">Deny</button>
                             </form>

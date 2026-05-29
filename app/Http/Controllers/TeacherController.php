@@ -105,6 +105,18 @@ class TeacherController extends Controller {
             $booked_slots[$row['room_id']][$row['day_of_week']][$row['timeslot']] = $row['course_name'] ?? 'Booked';
         }
 
+        $stmt_pending = $conn->prepare("
+            SELECT ps.id, c.name as course_name, r.name as room_name, ps.day_of_week, ps.timeslot, ps.status, ps.request_date
+            FROM pending_schedules ps
+            JOIN courses c ON ps.course_id = c.id
+            JOIN rooms r ON ps.room_id = r.id
+            WHERE ps.teacher_id = ?
+            ORDER BY ps.request_date DESC
+        ");
+        $stmt_pending->bind_param("i", $teacher_id);
+        $stmt_pending->execute();
+        $my_pending_bookings = $stmt_pending->get_result()->fetch_all(MYSQLI_ASSOC);
+
         $baseScript = $_SERVER['SCRIPT_NAME'] ?? '';
         $baseUri = rtrim(dirname($baseScript), '/\\');
 
@@ -118,6 +130,7 @@ class TeacherController extends Controller {
             'all_announcements' => $all_announcements,
             'rooms' => $rooms,
             'booked_slots' => $booked_slots,
+            'my_pending_bookings' => $my_pending_bookings,
             'weekdays' => $weekdays,
             'timeslots' => $timeslots,
             'teacher_username' => $teacher_username,
@@ -213,13 +226,13 @@ class TeacherController extends Controller {
                 $this->json(['success' => false, 'message' => 'You already have another class scheduled at this time.']);
             }
 
-            $stmt = $conn->prepare("INSERT INTO schedules (course_id, room_id, day_of_week, timeslot) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param("iiss", $course_id, $room_id, $day, $timeslot);
+            $stmt = $conn->prepare("INSERT INTO pending_schedules (course_id, room_id, day_of_week, timeslot, teacher_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->bind_param("iissi", $course_id, $room_id, $day, $timeslot, $teacher_id);
 
             if ($stmt->execute()) {
-                $this->json(['success' => true, 'message' => 'Room booked successfully!']);
+                $this->json(['success' => true, 'message' => 'Room booking request submitted for admin approval!']);
             } else {
-                $this->json(['success' => false, 'message' => 'A database error occurred while booking the room.']);
+                $this->json(['success' => false, 'message' => 'A database error occurred while submitting the booking request.']);
             }
         }
 
