@@ -1,33 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
 
-    // --- Theme Toggle ---
-    const themeToggle = document.getElementById('theme-toggle');
-    const body = document.body;
 
-    const applyTheme = (theme) => {
-        if (theme === 'dark') {
-            body.dataset.theme = 'dark';
-            if (themeToggle) themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
-        } else {
-            delete body.dataset.theme;
-            if (themeToggle) themeToggle.innerHTML = '<i class="fas fa-moon"></i>';
-        }
-    };
-
-    applyTheme(localStorage.getItem('theme'));
-
-    if (themeToggle) {
-        themeToggle.addEventListener('click', () => {
-            const isDark = body.dataset.theme === 'dark';
-            if (isDark) {
-                localStorage.removeItem('theme');
-                applyTheme('light');
-            } else {
-                localStorage.setItem('theme', 'dark');
-                applyTheme('dark');
-            }
-        });
-    }
 
     /**
      * Displays a toast notification at the top-right of the screen.

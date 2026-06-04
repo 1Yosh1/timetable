@@ -2,7 +2,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>Student Dashboard</h1>
         <div>
-            <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
             <a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/profile.php" class="btn btn-secondary">My Profile</a>
             <a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/logout.php" class="btn btn-danger">Logout</a>
         </div>

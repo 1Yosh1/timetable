@@ -15,9 +15,7 @@
 </div>
 
 <div class="main-content">
-    <div class="text-right mb-3">
-        <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
-    </div>
+
 <?php if ($page === 'home'): ?>
     <h1 class="mb-4">Dashboard Home</h1>
     <div class="row">
