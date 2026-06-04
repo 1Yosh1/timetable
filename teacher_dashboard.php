@@ -128,9 +128,12 @@ $timeslots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00
     <?php endif; ?>
 
     <div class="container my-4">
-        <div class="mb-4">
-            <h1>Teacher Dashboard</h1>
-            <p class="text-secondary">Welcome, <?php echo htmlspecialchars($teacher_username); ?>!</p>
+        <div class="d-flex align-items-center mb-4">
+            <img src="images/logo.png" alt="UniMe Logo" style="height: 60px; margin-right: 20px; object-fit: contain;">
+            <div>
+                <h1 class="m-0">Teacher Dashboard</h1>
+                <p class="text-secondary m-0">Welcome, <?php echo htmlspecialchars($teacher_username); ?>!</p>
+            </div>
         </div>
 
         <div class="d-flex justify-content-between align-items-end">

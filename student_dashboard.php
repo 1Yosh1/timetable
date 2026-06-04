@@ -89,7 +89,10 @@ if (!empty($enrolled_course_ids)) {
 <body>
     <div class="container my-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Student Dashboard</h1>
+            <div class="d-flex align-items-center">
+                <img src="images/logo.png" alt="UniMe Logo" style="height: 60px; margin-right: 20px; object-fit: contain;">
+                <h1 class="m-0">Student Dashboard</h1>
+            </div>
             <div>
                 <a href="profile.php" class="btn btn-secondary">My Profile</a>
                 <a href="logout.php" class="btn btn-danger">Logout</a>

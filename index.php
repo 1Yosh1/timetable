@@ -18,7 +18,7 @@ $token = csrf_token();
 <body class="login-page-body">
 <div class="login-container">
     <div class="login-header">
-        <i class="fas fa-calendar-check login-logo"></i>
+        <img src="images/logo.png" alt="UniMe Logo" class="login-logo-img">
         <h2>Sign in</h2>
         <p>Select your role to continue</p>
     </div>
