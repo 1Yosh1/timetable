@@ -1,6 +1,6 @@
 <div class="login-container">
     <div class="login-header">
-        <i class="fas fa-user-shield login-logo"></i>
+        <img src="<?php echo htmlspecialchars($baseUri ?? ''); ?>/images/logo.png" alt="UniMe Logo" class="login-logo-img">
         <h2>Admin Sign In</h2>
         <p>Access the management dashboard</p>
     </div>

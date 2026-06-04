@@ -1,4 +1,5 @@
-<div class="sidebar">
+<div class="sidebar text-center">
+    <img src="<?php echo htmlspecialchars($baseUri ?? ''); ?>/images/logo.png" alt="UniMe Logo" style="height: 60px; margin-bottom: 15px; max-width: 80%; object-fit: contain;">
     <h3 class="sidebar-header">Admin Panel</h3>
     <a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/admin_dashboard.php?page=home" class="<?php echo ($current_sub_page=='home')?'active':''; ?>"><i class="fas fa-home"></i> Home</a>
     <a href="#managementSubmenu" data-toggle="collapse" aria-expanded="<?php echo $is_management_active?'true':'false'; ?>" class="dropdown-toggle"><i class="fas fa-tasks"></i> Management</a>

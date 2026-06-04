@@ -1,6 +1,9 @@
 <div class="container my-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>My Profile</h1>
+        <div class="d-flex align-items-center">
+            <img src="<?php echo htmlspecialchars($baseUri ?? ''); ?>/images/logo.png" alt="UniMe Logo" style="height: 60px; margin-right: 20px; object-fit: contain;">
+            <h1 class="m-0">My Profile</h1>
+        </div>
         <div>
             <a href="<?php echo htmlspecialchars($baseUri ?? ''); ?>/student_dashboard.php" class="btn btn-secondary">Back to Dashboard</a>
         </div>

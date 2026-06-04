@@ -1,6 +1,6 @@
 <div class="login-container">
     <div class="login-header">
-        <i class="fas fa-user-plus login-logo"></i>
+        <img src="<?php echo htmlspecialchars($baseUri ?? ''); ?>/images/logo.png" alt="UniMe Logo" class="login-logo-img">
         <h2>Create your Account</h2>
         <p>Join as a Student or Teacher</p>
     </div>

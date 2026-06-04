@@ -342,3 +342,9 @@ body.login-page-body {
 .login-links a:hover {
     color: var(--color-accent-hover);
 }
+
+.login-logo-img {
+    height: 120px;
+    margin-bottom: 24px;
+    object-fit: contain;
+}

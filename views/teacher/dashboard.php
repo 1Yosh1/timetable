@@ -1,7 +1,10 @@
 <div class="container my-4">
-    <div class="mb-4">
-        <h1>Teacher Dashboard</h1>
-        <p class="text-secondary">Welcome, <?php echo htmlspecialchars($teacher_username ?? 'Teacher'); ?>!</p>
+    <div class="d-flex align-items-center mb-4">
+        <img src="<?php echo htmlspecialchars($baseUri ?? ''); ?>/images/logo.png" alt="UniMe Logo" style="height: 60px; margin-right: 20px; object-fit: contain;">
+        <div>
+            <h1 class="m-0">Teacher Dashboard</h1>
+            <p class="text-secondary m-0">Welcome, <?php echo htmlspecialchars($teacher_username ?? 'Teacher'); ?>!</p>
+        </div>
     </div>
 
     <div class="d-flex justify-content-between align-items-end">
