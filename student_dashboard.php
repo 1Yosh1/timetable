@@ -91,7 +91,6 @@ if (!empty($enrolled_course_ids)) {
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>Student Dashboard</h1>
             <div>
-                <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
                 <a href="profile.php" class="btn btn-secondary">My Profile</a>
                 <a href="logout.php" class="btn btn-danger">Logout</a>
             </div>

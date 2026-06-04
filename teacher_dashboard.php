@@ -142,7 +142,6 @@ $timeslots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00
                 <li class="nav-item"><a class="nav-link" id="rooms-tab" data-toggle="tab" href="#rooms" role="tab">Book a Room</a></li>
             </ul>
             <div>
-                <button id="theme-toggle" class="btn btn-outline-secondary mb-1" title="Toggle Theme"><i class="fas fa-moon"></i></button>
                 <a href="logout.php" class="btn btn-danger mb-1">Logout</a>
             </div>
         </div>

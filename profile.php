@@ -36,10 +36,7 @@ $email = $_SESSION['email'] ?? 'No email on file';
     <div class="container my-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1>My Profile</h1>
-            <div>
-                <button id="theme-toggle" class="btn btn-outline-secondary" title="Toggle Theme"><i class="fas fa-moon"></i></button>
                 <a href="student_dashboard.php" class="btn btn-secondary">Back to Dashboard</a>
-            </div>
         </div>
 
         <div class="row">
