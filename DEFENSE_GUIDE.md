@@ -188,7 +188,7 @@ Format: **what it is → what to point at → how to modify → what changes**.
 - **Does:** starts the session, loads `.env`, registers the class autoloader, optionally enables debug, defines `app_redirect()`, loads `db_config.php`, and sets three security headers.
 - **Point at:** `:3` `session_start()`, `:7` `EnvLoader::load()`, `:11` autoloader, `:24` the `APP_DEBUG` branch, `:36` the `db_config` include, `:39-41` the headers.
 - **Modify:** add a global helper → wrap in `if (!function_exists(...))` like `app_redirect`. Change security headers → `:39`. Add a new env var → nothing to change here, `EnvLoader` picks it up.
-- **Weak spot:** it turns `display_errors` **on** when `APP_DEBUG=1`, but never forces it **off** when it's `0`. On a PHP install whose ini has `display_errors=On` (XAMPP's default), a crash prints file paths and a stack trace to the user.
+- **Point at:** the `APP_DEBUG` branch now has two arms. `APP_DEBUG=1` prints errors; **anything else forces `display_errors` and `display_startup_errors` off** while keeping `log_errors` on. That `else` is the fix for the original defect: without it, a php.ini that ships `display_errors=On` (XAMPP's default) printed stack traces and absolute paths to the browser even in production mode. Worth saying that you verified both directions — a forced fatal returns a bare `500` with `APP_DEBUG=0`, and the trace with `APP_DEBUG=1`.
 
 #### `db_config.php` — the database connection (27 lines)
 - **Does:** refuses to run without `mysqli`, turns SQL errors into exceptions, reads credentials from `$_ENV`/`getenv` with localhost defaults, connects, sets `utf8mb4`, and dies with a generic message on failure.
@@ -515,6 +515,7 @@ If something breaks mid-demo, the honest line depends on the symptom: a **fatal 
 22. **"Why does the profile say 'No email on file'?"** → `profile.php` reads `$_SESSION['email']`, which login never sets; it should query the `users` row.
 23. **"Why would admin login fail on another machine?"** → It did: the page skipped bootstrap, so `.env` was ignored and only `getenv()` plus defaults counted — 500 on MAMP credentials. I changed it (and `mark_attendance.php`) to require `app/bootstrap.php`, and verified admin login returns 302 from `.env` alone against MySQL 8 with `root`/`root`.
 24. **"Does a pending booking reserve the room?"** → No. The teacher-side check reads `schedules`, not `pending_schedules`, so duplicate pending requests can pile up; the admin's approval is what serialises them, backed by the `UNIQUE (room, day, timeslot)` key.
+25. **"Where do errors go in production?"** → `bootstrap.php` logs them (`log_errors=1`) and never prints them: the non-debug branch sets `display_errors=0` explicitly, so a crash is a bare `500` plus a line in the server log, not a stack trace for the user.
 
 ### 4.5 The five-minute study plan
 

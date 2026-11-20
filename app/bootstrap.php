@@ -20,10 +20,17 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
     require_once __DIR__ . '/../vendor/autoload.php';
 }
 
-// Enable debug if APP_DEBUG=1 in .env
+// Errors are logged always, printed only when APP_DEBUG=1 in .env.
+// Without the explicit "off" branch, a php.ini that ships display_errors=On
+// (XAMPP's default) prints stack traces to the browser in production.
 if (getenv('APP_DEBUG') === '1') {
     ini_set('display_errors', '1');
     ini_set('display_startup_errors', '1');
+    error_reporting(E_ALL);
+} else {
+    ini_set('display_errors', '0');
+    ini_set('display_startup_errors', '0');
+    ini_set('log_errors', '1');
     error_reporting(E_ALL);
 }
 
