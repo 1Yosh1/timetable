@@ -85,6 +85,8 @@ The **Timetable Management System** is a web-based application designed to manag
   counter lives in `storage/bruteforce/`; `rm -f storage/bruteforce/*.json` clears it.
 - `.htaccess` denies `.env`, `demo.sql`, `app/`, `storage/` and this README to the browser.
   Apache needs `AllowOverride All` (XAMPP's default); without it the rules are ignored.
+- Bootstrap, jQuery and Font Awesome are vendored in `vendor/`, so tabs, modals and icons
+  work with no internet connection at all.
 
 ---
 
