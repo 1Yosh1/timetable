@@ -415,6 +415,8 @@ schedules ─── attendance.schedule_id      (attendance is per session, per 
 6. **Unused columns and duplicate indexes** as detailed above.
 7. **No `ON DELETE` policy on `courses.teacher_id` and `schedules.course_id`/`room_id`**, so deletion semantics are undefined at the schema level and discovered at runtime as exceptions.
 
+> **Status after this revision.** Items 2–4 are historical. `app/timetable.sql` has been regenerated from `demo.sql` as a schema-only file, so it now has statement terminators, `SET FOREIGN_KEY_CHECKS=0/1` around the block, explicit `utf8mb4`, and the two tables the original omitted. Verified as 9 tables and 0 rows on MariaDB 11.3.2 and MySQL 8.0.46. `demo.sql` remains the seeded import for running the application.
+
 ### 6.4 What the schema gets right
 
 The constraint choices that do exist are the ones that matter most. `UNIQUE(room_id, day_of_week, timeslot)` and `UNIQUE(student_id, course_id)` are exactly the two invariants that a check-then-insert bug would otherwise violate under concurrency, and both are present. `attendance`'s composite unique key is correctly designed for idempotent daily upserts. Foreign keys are declared with `ON DELETE CASCADE` where cascade is obviously right (enrollment and attendance rows die with their student). Whoever chose these constraints understood relational integrity; the gap is coverage, not comprehension.
@@ -1624,7 +1626,7 @@ Severity: C = Critical, H = High, M = Medium, L = Low. Effort: S = under 15 min,
 | 6 | H | Approval bypasses cap and conflict rules | `manage_admin_tasks.php:219` `INSERT IGNORE` | Delegate to service; catch duplicate | M |
 | 7 | H | Open self-registration as `teacher` grants writes | `register_process.php:38` | Invitation/approval flow | M |
 | 8 | M | `.env` tracked in git; no `.htaccess` | `git ls-files`; no dotfile deny | `git rm --cached`, ignore, `.env.example`, deny rule | S |
-| 9 | M | Two of nine required tables absent from schema | `app/timetable.sql` vs code | Complete migration | S |
+| 9 | M | Two of nine required tables absent from schema | `app/timetable.sql` vs code | Complete migration. **Fixed in this revision**: `app/timetable.sql` regenerated from `demo.sql`, 9 tables, verified to import on MariaDB 11.3 and MySQL 8.0 | S |
 | 10 | M | Schema has no semicolons; cannot import | whole file | Rewrite as migration | S |
 | 11 | M | Enrollment limit: UI 6, server 5 | `AppConfig:23` vs `manage_enrollment.php:26` | One source of truth | S |
 | 12 | M | Admin edit-user modal dead | `js/script.js:19` guard | Remove guard, bind directly | S |

@@ -288,13 +288,10 @@ Format: **what it is → what to point at → how to modify → what changes**.
 - **Modify:** change the brand colour → one token (`--color-accent`). Dark mode → override the tokens under a `[data-theme="dark"]` selector; nothing else needs to change.
 - **Bug to own:** `.btn-outline:hover` uses `var(--color-text-hover)`, which is never defined — that declaration silently drops. Either define it or use `--color-text-primary`.
 
-#### `app/timetable.sql` — the schema dump (7 tables)
-- **Does:** `CREATE TABLE` for `users`, `courses`, `rooms`, `schedules`, `enrollments`, `pending_enrollments`, `attendance`.
-- **Point at:** it's the database design in one file — that's the artefact to show when he asks about normalization.
-- **Two real problems to admit (they're good marks, not bad ones):**
-  1. **No semicolons.** Every block ends with `)` and a blank line. Importing it as-is gives `ERROR 1064` and creates nothing.
-  2. **Alphabetical order breaks the foreign keys.** `attendance` references `users` and `schedules` but is created first, so even with semicolons you get `errno 150`. It needs `SET FOREIGN_KEY_CHECKS=0;` at the top (and `=1` at the end).
-  3. **Two tables are missing** that the code requires: `announcements` and `pending_schedules`. Without them the teacher dashboard and the admin schedule-requests page crash. `demo.sql` in the project root is the fixed, seeded replacement — that's the file to import.
+#### `app/timetable.sql` — the schema, no seed rows (9 tables)
+- **Does:** `CREATE TABLE` for all nine tables — the original seven plus `announcements` and `pending_schedules` — wrapped in `SET FOREIGN_KEY_CHECKS=0/1`. No `INSERT`s, so it is the clean artefact for a normalization or keys question.
+- **Point at:** it is now **generated from `demo.sql`**, so the two cannot drift; the header says so. For the demo itself import `demo.sql`, which is the same schema plus seed data.
+- **The story worth telling, because it is a real fix:** the shipped version imported to **zero tables**. It had no `;` terminators at all, its alphabetical order broke the `attendance` foreign key with `errno 150` unless foreign-key checks were disabled, and it was missing `announcements` and `pending_schedules` entirely — which is why a fresh install 500'd on the teacher dashboard. It is now regenerated and verified to import cleanly on both MariaDB 11.3 and MySQL 8.0, ending with 9 tables and 0 rows.
 
 ---
 
@@ -436,7 +433,7 @@ DB_PORT=3306
    `.env.example` in the project root is the same template with those MAMP values commented out, so `cp .env.example .env` then uncommenting two lines is the whole configuration step.
 7. Open `http://localhost/timetable/index.php`.
 
-**What `demo.sql` contains, and why it's one file:** the 7 tables from `app/timetable.sql` with the missing `;` terminators added (definitions unchanged), the two tables the code needs but the dump omits (`announcements`, `pending_schedules`), `SET FOREIGN_KEY_CHECKS=0/1` around the whole thing so the alphabetical order can't break the `attendance` foreign key, and seed data sized for the demo: 6 users, 3 rooms, 7 courses, 9 scheduled slots, 9 enrollments, 10 attendance rows, 3 announcements, 2 pending enrollments and 2 competing room bookings. Logins: `admin`/`admin1234`, everyone else `pass1234`.
+**What `demo.sql` contains, and why it's one file:** the full nine-table schema (identical to `app/timetable.sql`, which is generated from it), `SET FOREIGN_KEY_CHECKS=0/1` around everything so the alphabetical order can't break the `attendance` foreign key, and seed data sized for the demo: 6 users, 3 rooms, 7 courses, 9 scheduled slots, 9 enrollments, 10 attendance rows, 3 announcements, 2 pending enrollments and 2 competing room bookings. Logins: `admin`/`admin1234`, everyone else `pass1234`.
 
 The seed deliberately contains three live bugs so you can *show* them rather than describe them: **CS103 has no slot** (the invisible-course bug), **CS105 clashes with CS101** (a real `Conflict` button), and **stud_hana already has 5 courses** (the cap mismatch).
 
@@ -471,7 +468,7 @@ which starts the session, loads `.env` and pulls in `db_config.php`. With that o
 | 13 | **Enrollment Requests** → Approve stud_hana's request | "She already had five courses; approving gives her six. The admin path skips the cap the student path enforces — that's the bug, not a feature." |
 | 14 | **Reports** | "Enrollment counts per course and room utilization against 40 slots per week." |
 
-If something breaks mid-demo, the honest line depends on the symptom: a **fatal on the teacher dashboard** means the database was imported from `app/timetable.sql` instead of `demo.sql` (the `announcements` table); a **500 on admin login** would now mean the `.env` values themselves are wrong, since those pages honour `.env` — check `DB_HOST`, `DB_USER`, `DB_PASS` and the port (MAMP's MySQL listens on **8889**, not 3306). Say which one it is, name the cause, move on. You lose nothing by knowing.
+If something breaks mid-demo, the honest line depends on the symptom: a **fatal about a missing table** means the database came from an older or partial dump — re-import `demo.sql` into a fresh database; a **500 on admin login** would now mean the `.env` values themselves are wrong, since those pages honour `.env` — check `DB_HOST`, `DB_USER`, `DB_PASS` and the port (MAMP's MySQL listens on **8889**, not 3306). Say which one it is, name the cause, move on. You lose nothing by knowing.
 
 ### 4.3 "How would you modify it?" — the table to memorise
 

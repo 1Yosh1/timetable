@@ -45,9 +45,9 @@ The **Timetable Management System** is a web-based application designed to manag
    - Open `phpMyAdmin` (http://localhost/phpmyadmin).
    - Create a new database named `timetable` with collation `utf8mb4_general_ci`.
    - Select it, open the **Import** tab, choose `demo.sql` from the project root and run it.
-   - `demo.sql` is the complete setup in one file: the schema (including the `announcements`
-     and `pending_schedules` tables that `app/timetable.sql` omits) plus demo data.
-     Expect **9 tables** and **6 users**.
+   - `demo.sql` is the complete setup in one file: the full nine-table schema plus demo data.
+     Expect **9 tables** and **6 users**. (`app/timetable.sql` holds the same schema without
+     the seed rows, if you only want the structure.)
 
 4. **Configure the Connection**:
    - Copy the template and adjust it if your database differs from the XAMPP defaults:
@@ -68,6 +68,7 @@ The **Timetable Management System** is a web-based application designed to manag
    | Teacher | `teach_kebede` | `pass1234` |
    | Student | `stud_eyoas` | `pass1234` |
    | Student | `stud_hana` | `pass1234` |
+   | Student | `stud_selam` | `pass1234` |
 
 6. **Run the Application**:
    - Open your browser and navigate to `http://localhost/timetable/index.php`.
@@ -76,9 +77,9 @@ The **Timetable Management System** is a web-based application designed to manag
 
 ## Database Design
 
-Both `demo.sql` and `app/timetable.sql` describe the same design, but only `demo.sql` is
-complete: the older dump lacks statement terminators and the `announcements` and
-`pending_schedules` tables. The schema below is what `demo.sql` creates.
+Both files describe the same design: `app/timetable.sql` is the schema on its own, and
+`demo.sql` is that schema plus demo data. Import `demo.sql` for the working application.
+The schema below is what both files create.
 
 ### Tables
 1. **`users`**:
@@ -166,8 +167,8 @@ complete: the older dump lacks statement terminators and the `announcements` and
    - Verify that the MySQL service is running.
 
 2. **Fatal error about a missing table (`announcements`, `pending_schedules`)**:
-   - The database was imported from `app/timetable.sql` instead of `demo.sql`. Drop the
-     database, create it again and import `demo.sql`.
+   - The database was created from an older or partial dump. Drop it, create it again and
+     import `demo.sql`.
 
 3. **CSRF Token Mismatch**:
    - Ensure all forms include the `csrf_field()` function.
