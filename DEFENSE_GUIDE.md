@@ -199,7 +199,7 @@ Format: **what it is → what to point at → how to modify → what changes**.
 
 #### `.env` — configuration (5 lines, committed to git)
 - **Does:** `APP_DEBUG`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` (a sixth, `DB_PORT`, is optional and defaults to 3306 in `db_config.php`).
-- **Point at:** it exists because credentials shouldn't be edited in code — good instinct. Then admit the flaw: it is **committed**, and with no `.htaccess` it's downloadable at `/.env`. The fix is two lines: add `.env` to `.gitignore`, commit a `.env.example`, and deny dotfiles in Apache.
+- **Point at:** it exists because credentials shouldn't be edited in code — good instinct. Then admit the flaw: it is **committed**, and with no `.htaccess` it's downloadable at `/.env`. The fix is half done: `.env.example` is now committed with placeholder values, so the remaining steps are `git rm --cached .env`, an `.env` line in `.gitignore`, and a dotfile deny rule in Apache (or a `public/` document root).
 - **The bigger flaw, mostly fixed:** `admin_login_process.php` and `mark_attendance.php` used to never load this file (they skipped bootstrap), so they ignored `.env` entirely. Both now require `app/bootstrap.php`, so they honour it. Two unused endpoints — `check_conflict.php` and `get_student_attendance.php` — still bypass bootstrap and read `getenv()` only.
 - **Modify:** change the DB → edit here, no code change. That separation is the whole point, and it's the right answer to "why not hard-code it?".
 
@@ -432,6 +432,8 @@ DB_PASS=
 DB_PORT=3306
 ```
    **On MAMP** the same block needs two changes: `DB_PASS=root` and `DB_PORT=8889` — MAMP's MySQL listens on 8889, not 3306. With the bootstrap fix below in place, those two lines are all the app needs; without it, admin login and attendance ignore this file entirely.
+
+   `.env.example` in the project root is the same template with those MAMP values commented out, so `cp .env.example .env` then uncommenting two lines is the whole configuration step.
 7. Open `http://localhost/timetable/index.php`.
 
 **What `demo.sql` contains, and why it's one file:** the 7 tables from `app/timetable.sql` with the missing `;` terminators added (definitions unchanged), the two tables the code needs but the dump omits (`announcements`, `pending_schedules`), `SET FOREIGN_KEY_CHECKS=0/1` around the whole thing so the alphabetical order can't break the `attendance` foreign key, and seed data sized for the demo: 6 users, 3 rooms, 7 courses, 9 scheduled slots, 9 enrollments, 10 attendance rows, 3 announcements, 2 pending enrollments and 2 competing room bookings. Logins: `admin`/`admin1234`, everyone else `pass1234`.
