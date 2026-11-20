@@ -1,6 +1,5 @@
 <?php
-session_start();
-require_once 'db_config.php';
+require_once __DIR__ . '/app/bootstrap.php'; //session, .env, db_config
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'teacher') {
     die("Access Denied.");
