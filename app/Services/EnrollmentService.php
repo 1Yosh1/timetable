@@ -10,7 +10,7 @@ class EnrollmentService {
     private ScheduleRepository $scheduleRepo;
     private int $maxCourses;
 
-    public function __construct(EnrollmentRepository $er, ScheduleRepository $sr, int $maxCourses = 6) {
+    public function __construct(EnrollmentRepository $er, ScheduleRepository $sr, int $maxCourses = 5) {
         $this->enrollRepo = $er;
         $this->scheduleRepo = $sr;
         $this->maxCourses = $maxCourses;

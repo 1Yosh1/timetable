@@ -6,11 +6,9 @@
 --  CLI:         mysql -u root timetable < demo.sql
 --
 --  What this file contains
---    1. The 7 tables from app/timetable.sql, with the missing `;`
---       terminators added (the definitions themselves are unchanged).
---    2. The 2 tables the PHP code requires but the dump omits:
---       `announcements` and `pending_schedules`.
---    3. Demo seed data: 6 users, 3 rooms, 7 courses, 9 scheduled slots,
+--    1. The nine-table schema — the same statements as app/timetable.sql,
+--       which is generated from this file, so the two cannot drift.
+--    2. Demo seed data: 6 users, 3 rooms, 7 courses, 9 scheduled slots,
 --       9 enrollments, 10 attendance rows, 3 announcements and 4 pending
 --       requests (2 enrollment requests + 2 competing room bookings).
 --
@@ -32,8 +30,9 @@
 --      bug (appears under My Courses, absent from My Schedule).
 --    * CS105 clashes with CS101 (both Monday 09:00) -> the student sees a
 --      disabled "Conflict" button instead of "Enroll".
---    * stud_hana already has 5 courses -> the UI still offers Enroll (it
---      reads MAX_COURSES=6) but the server rejects it (hard-coded 5).
+--    * stud_hana already holds 5 courses (MAX_COURSES) -> the dashboard
+--      offers only "Request Approval", and approving that request is refused
+--      with the same limit, because the admin path reads the same value.
 --    * Two pending room bookings compete for the same slot -> approving one
 --      auto-denies the other inside a transaction.
 -- ============================================================
@@ -48,15 +47,11 @@ SET NAMES utf8mb4;
 CREATE TABLE `attendance` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `student_id` int(11) DEFAULT NULL,
-  `attendance_date` date DEFAULT NULL,
   `schedule_id` int(11) DEFAULT NULL,
   `status` enum('present','absent') NOT NULL,
   `date` date NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `student_schedule_date` (`student_id`,`schedule_id`,`date`),
-  KEY `student_id` (`student_id`),
-  KEY `schedule_id` (`schedule_id`),
-  KEY `idx_attendance_student` (`student_id`),
   KEY `idx_attendance_schedule` (`schedule_id`),
   CONSTRAINT `attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `attendance_ibfk_2` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`id`) ON DELETE CASCADE
@@ -79,10 +74,6 @@ CREATE TABLE `enrollments` (
   `course_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `student_course` (`student_id`,`course_id`),
-  UNIQUE KEY `uniq_enrollment` (`student_id`,`course_id`),
-  KEY `student_id` (`student_id`),
-  KEY `course_id` (`course_id`),
-  KEY `idx_enrollments_student` (`student_id`),
   KEY `idx_enrollments_course` (`course_id`),
   CONSTRAINT `enrollments_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `enrollments_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE

@@ -27,7 +27,7 @@ Then the numbers, which make you sound like you own the code:
 | Grid | 5 days × 8 one-hour slots = 40 slots per room per week |
 | Roles | student, teacher, admin (admin has a separate login) |
 
-The cap mismatch is a genuine bug, not a typo — and it's a *great* answer if he asks "did you find anything yourself?" Say it in one sentence: "The dashboard lets you click Enroll while you have 5 courses because the UI reads a config default of 6, but the server hard-codes 5, so the button always fails at that point. They should read the same constant."
+The cap was the cleanest self-found bug: the dashboard offered Enroll at 5 courses because the UI read a config default of 6 while the server hard-coded 5, so the button always failed. It is now one value — `MAX_COURSES` through `AppConfig::maxCourses()` — read by the dashboard, the AJAX endpoint and the admin approval path. If he asks "did you find anything yourself?", that is the sentence, with the fix attached.
 
 ---
 
@@ -117,7 +117,7 @@ Note the shape: **check the session, then redirect, then `exit`**. Skipping `exi
 There are two levels, and he will probably test the difference:
 
 - **Role-level** — "is this a teacher?" — checked almost everywhere.
-- **Ownership-level** — "is this *your* course?" — checked in `manage_teacher_tasks.php` (announcements and bookings do `WHERE course_id=? AND teacher_id=?`), but **not** in `mark_attendance.php`, where any teacher can post any `schedule_id`. That's the single best thing to volunteer before he finds it: "The authorization model is inconsistent: the booking endpoint verifies ownership, the attendance endpoint trusts the schedule id. They should be the same check."
+- **Ownership-level** — "is this *your* course?" — checked in `manage_teacher_tasks.php` (announcements and bookings do `WHERE course_id=? AND teacher_id=?`) and now also in `mark_attendance.php`, which used to trust any posted `schedule_id`. That was the project's weakest point, and it makes a better story as a fix: "The authorization model was inconsistent — the booking endpoint verified ownership, the attendance endpoint trusted the schedule id. I made the attendance endpoint do the same check, and it now returns 403 instead of writing."
 
 ### 2.5 CSRF: what it is and how it's done here
 
@@ -127,7 +127,7 @@ CSRF = another site makes the user's browser POST to your app while they're logg
 - Delivery: hidden `<input name="csrf_token">` for forms, `<meta name="csrf-token">` for `fetch()`.
 - Verification: `manage_enrollment.php`, `manage_admin_tasks.php`, `manage_teacher_tasks.php`, `login_process.php`, `register_process.php`, `change_password_process.php`.
 
-Two POST endpoints don't verify it: `admin_login_process.php` and `mark_attendance.php`. (Login CSRF is lower severity; the attendance one is a real hole.)
+`mark_attendance.php` now verifies it too — the form carries a hidden `csrf_token` and the handler returns `400` without one. The one POST endpoint still without a token is `admin_login_process.php`; login CSRF is lower severity, and saying that plainly is better than pretending it is fine.
 
 ### 2.6 SQL: prepared statements, joins, transactions
 
@@ -189,18 +189,19 @@ Format: **what it is → what to point at → how to modify → what changes**.
 - **Point at:** `:3` `session_start()`, `:7` `EnvLoader::load()`, `:11` autoloader, `:24` the `APP_DEBUG` branch, `:36` the `db_config` include, `:39-41` the headers.
 - **Modify:** add a global helper → wrap in `if (!function_exists(...))` like `app_redirect`. Change security headers → `:39`. Add a new env var → nothing to change here, `EnvLoader` picks it up.
 - **Point at:** the `APP_DEBUG` branch now has two arms. `APP_DEBUG=1` prints errors; **anything else forces `display_errors` and `display_startup_errors` off** while keeping `log_errors` on. That `else` is the fix for the original defect: without it, a php.ini that ships `display_errors=On` (XAMPP's default) printed stack traces and absolute paths to the browser even in production mode. Worth saying that you verified both directions — a forced fatal returns a bare `500` with `APP_DEBUG=0`, and the trace with `APP_DEBUG=1`.
+- **Also new:** a `PHP_VERSION_ID < 80100` guard at the top of the file. On an old lab machine the app has to *say* it needs PHP 8.1, because in production mode errors are hidden and a crash would be a blank page. And `date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'Africa/Addis_Ababa')` runs straight after `.env` loads, so the date written to attendance is the local one — verified: the app reported `07:17 EAT` while the same container's `gmdate()` said `04:17`.
 
 #### `db_config.php` — the database connection (27 lines)
 - **Does:** refuses to run without `mysqli`, turns SQL errors into exceptions, reads credentials from `$_ENV`/`getenv` with localhost defaults, connects, sets `utf8mb4`, and dies with a generic message on failure.
 - **Point at:** `:9` `mysqli_report(...)` — this one line changes error handling for the whole app; `:16` the `env ?: default` chain; `:19` `set_charset('utf8mb4')` (why emoji and Amharic text won't corrupt).
 - **Modify:** new credentials → `.env`, not this file. Different fallback → `:16-18`.
 - **What changes:** every page includes this, directly or through bootstrap — so a change here is global.
-- **Trap:** `check_conflict.php` and `get_student_attendance.php` include **only** this file, not bootstrap, so they never load `.env`. On any non-default database they fail with "Database connection error." (Two pages used to share this bug — `admin_login_process.php` and `mark_attendance.php` — and both were fixed by requiring `app/bootstrap.php`; verified 500 → 302.)
+- **Note:** this file is now always reached through `app/bootstrap.php`. `check_conflict.php` used to include only this file and therefore read `getenv()` alone; it now requires bootstrap. `get_student_attendance.php` did the same and was deleted. The two pages that used to skip bootstrap in real use — `admin_login_process.php` and `mark_attendance.php` — were fixed the same way (verified 500 → 302).
 
-#### `.env` — configuration (5 lines, committed to git)
-- **Does:** `APP_DEBUG`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS` (a sixth, `DB_PORT`, is optional and defaults to 3306 in `db_config.php`).
-- **Point at:** it exists because credentials shouldn't be edited in code — good instinct. Then admit the flaw: it is **committed**, and with no `.htaccess` it's downloadable at `/.env`. The fix is half done: `.env.example` is now committed with placeholder values, so the remaining steps are `git rm --cached .env`, an `.env` line in `.gitignore`, and a dotfile deny rule in Apache (or a `public/` document root).
-- **The bigger flaw, mostly fixed:** `admin_login_process.php` and `mark_attendance.php` used to never load this file (they skipped bootstrap), so they ignored `.env` entirely. Both now require `app/bootstrap.php`, so they honour it. Two unused endpoints — `check_conflict.php` and `get_student_attendance.php` — still bypass bootstrap and read `getenv()` only.
+#### `.env` — configuration (untracked; `.env.example` is the template)
+- **Does:** `APP_DEBUG`, `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASS`, `DB_PORT`, plus `MAX_COURSES` (default 5) and `APP_TIMEZONE`. Read by `EnvLoader`, and by `db_config.php` as a fallback.
+- **Point at:** it exists because credentials shouldn't be edited in code — good instinct. The flaw was that it was **committed**, putting the password in git history. It is now untracked and ignored, `.env.example` carries the XAMPP values (MAMP's two lines commented out), and `.htaccess` denies dotfiles. Verified under Apache 2.4: `/.env` → **403**, `/demo.sql` → 403, `/app/*` → 404, while `css/styles.css` still returns 200.
+- **The bigger flaw, now closed:** `admin_login_process.php` and `mark_attendance.php` used to skip bootstrap, so they ignored `.env` entirely; both require it now. `check_conflict.php` was the last one doing that and now requires bootstrap too; `get_student_attendance.php` was deleted.
 - **Modify:** change the DB → edit here, no code change. That separation is the whole point, and it's the right answer to "why not hard-code it?".
 
 #### `app/Support/EnvLoader.php` — 20-line `.env` parser
@@ -224,9 +225,9 @@ Format: **what it is → what to point at → how to modify → what changes**.
 - **Modify:** new DB setting → you must update **both** this file and `db_config.php`. That's the cost of the duplication, and a good answer if he asks what you'd refactor.
 
 #### `app/Config/AppConfig.php` — config with a static cache (35 lines)
-- **Does:** `AppConfig::get($key, $default)` reads env once and memoises; `maxCourses()` returns `(int) get('MAX_COURSES', 6)`; also `appName()` and `debug()`.
-- **Point at:** `maxCourses()` default **6** versus the hard-coded **5** in `manage_enrollment.php:26`. This file is the right home for the limit; the endpoint should call it.
-- **Modify (the fix):** in `manage_enrollment.php` replace `5 // aligned with UI` with `AppConfig::maxCourses()`, and add `MAX_COURSES=5` to `.env` if 5 is the intended policy. Now UI and server agree, and the limit is configurable.
+- **Does:** `AppConfig::get($key, $default)` reads env once and memoises; `maxCourses()` returns `(int) get('MAX_COURSES', 5)`; also `appName()`, `timezone()` helpers and `debug()`.
+- **Point at:** `maxCourses()` is now the single source of the limit. The student dashboard's text, `manage_enrollment.php` (which used to hard-code 5) and `approve_enrollment` in `manage_admin_tasks.php` (which had no check at all) all call it, so setting `MAX_COURSES` in `.env` moves all three together.
+- **The fix, already applied:** `manage_enrollment.php` passes `AppConfig::maxCourses()` into `EnrollmentService`, the service's own default is 5 for consistency, and the approval path refuses with the same number. Verified: `stud_hana` at 5 courses is refused on both paths, with the dashboard stating "maximum of 5".
 
 #### `app/Cache/ArrayCache.php` — 19 lines, a non-cache
 - **Does:** `remember($key, $ttl, $fn)` in a `static array`.
@@ -274,12 +275,11 @@ Format: **what it is → what to point at → how to modify → what changes**.
 - **Does:** one POST endpoint, one `switch ($action)` with ten cases: `add_user`, `edit_user`, `delete_user`, `add_course`, `assign_teacher`, `add_schedule`, `approve_enrollment`, `deny_enrollment`, `approve_schedule`, `deny_schedule`. Then redirects back to the page the form came from.
 - **Point at:** `:65` the switch start; `:156` `add_schedule` and its three conflict queries; `:240` `approve_schedule` and the transaction.
 - **Modify (very likely):** "add a feature to the admin panel" = a `case` here + a form in `admin_dashboard.php` + a `source_page` value. That's the whole extension pattern, and it's worth saying out loud.
-- **Weak spots to volunteer:** `approve_enrollment` uses `INSERT IGNORE` with **no limit check**, so an admin approval can push a student past the cap; `edit_user` calls `execute()` without `try/catch`, so a duplicate username crashes; `delete_user` relies on `ON DELETE CASCADE` to clean up enrollments and attendance.
+- **Weak spots, and what changed:** `approve_enrollment` used `INSERT IGNORE` with **no limit check**, so an approval could push a student past the cap — it now reads `AppConfig::maxCourses()` and refuses with a message. `edit_user` called `execute()` unguarded, so a duplicate username was a blank 500 — it now catches `mysqli_sql_exception` and says "that username or email is already taken". `delete_user` still relies on `ON DELETE CASCADE` for enrollments and attendance, and deleting a teacher who owns courses is refused by the foreign key; that is now caught and reported. Verified: both return 302 with a message, and the users table is unchanged.
 
 #### `js/script.js` — the whole client side (261 lines)
 - **Does:** toasts, the admin edit-modal fill, the teacher room search + booking modal + announcement delete, the student enroll/unenroll/request flow, delete confirmations, and a debounced conflict check.
-- **Point at:** `:19` and `:253` — two handlers wrapped in `if (document.getElementById('adminTabContent'))`. **No page has that id** (the admin layout is `div.sidebar` + `div.main-content`). So the Edit-user modal never fills, and the live conflict warning never runs. This is the single most interesting code-reading answer you have: the feature looks present in the HTML (`#editUserModal`, `.edit-user-btn`, `#conflict-warning` all exist) but the binding is dead because of one stale selector.
-- **Fix:** rename the guard to something that exists (e.g. `document.querySelector('.main-content')`) or add `id="adminTabContent"` to the admin container. Then the modal populates from the button's `data-*` attributes and `check_conflict.php` starts being used.
+- **Point at:** `:19` and `:253` — two handlers wrapped in `if (document.getElementById('adminTabContent'))`. That id **used to be missing** from the admin layout, so the Edit-user modal never filled and the live conflict warning never ran, even though `#editUserModal`, `.edit-user-btn` and `#conflict-warning` all existed in the HTML. The fix was one attribute: `admin_dashboard.php` now renders `<div class="main-content" id="adminTabContent">`. That is the best code-reading answer you have — a feature that looks present but is dead because of one stale selector, and the bug is visible in the source if you read the guard.
 - **Modify (enrollment buttons):** `handleEnrollment()` builds `FormData` from `data-course-id`; add an action → add a `classList.contains()` branch and the matching service method.
 
 #### `css/styles.css` — the theme (397 lines)
@@ -365,24 +365,24 @@ Format: **what it is → what to point at → how to modify → what changes**.
 - **Does:** five tabs. Loads the teacher's courses, then in **three** batch queries (using `IN (?,?,...)` placeholders) the students, the schedules and the attendance for all those courses, then groups them in PHP. Also loads pending bookings, all rooms, and a booked-slot map.
 - **Point at:** `:32` the dynamic `$placeholders` + `str_repeat('i', ...)` + `bind_param($types, ...$course_ids)` pattern — that's the "safe `IN` clause" idiom, and it's the most advanced SQL technique in the project. Also `:77` the announcements query, `:83` its `prepare()`, and `:103` the booked-slot map that colours the grid.
 - **Modify:** add a "class roster download" → one more query or reuse `$course['students']`, then `header('Content-Type: text/csv')` and echo rows.
-- **Weak spot:** it uses `announcements` and `pending_schedules`, which **don't exist** in the shipped SQL — so on a fresh import this page is a fatal error at `:83`. If your demo DB is built correctly, you'll never see it; know why.
+- **Weak spot, now historical:** it uses `announcements` and `pending_schedules`, which the old 7-table dump omitted, so importing that dump made this page a fatal error at `:83`. Both tables exist in `demo.sql` and in `app/timetable.sql`, and a clean import is verified on both engines.
 - **Note:** `$weekdays` and `$timeslots` are re-declared literally at `:111-112`, shadowing the `DayOfWeek`/`TimeSlot` values imported at the top. That's the duplication behind the "add Saturday" question.
 
 #### `mark_attendance.php` — attendance write (64 lines)
-- **Does:** starts the session, requires a teacher, validates the posted fields, looks up the schedule's course, loads the enrolled students, then in one transaction upserts one row per student with `ON DUPLICATE KEY UPDATE status = VALUES(status)`, and redirects with a flash message.
+- **Does:** starts the session, requires a teacher, verifies the CSRF token, validates the posted fields, looks up the schedule's course, **checks that course belongs to this teacher**, loads the enrolled students, then in one transaction upserts one row per student with `ON DUPLICATE KEY UPDATE status = VALUES(status)`, and redirects with a flash message.
 - **Point at:** `:35` the transaction, `:38-39` the upsert, `:44` the per-student `bind_param`, `:49` commit / `:55` rollback.
 - **Why the upsert matters:** `attendance` is unique on `(student_id, schedule_id, date)`, so re-submitting the same date **corrects** rather than duplicates. Good design to defend. On MySQL 8.0.20+ `VALUES(status)` is deprecated (warning 1287, observed on 8.0.46); the modern form is `INSERT ... AS new ON DUPLICATE KEY UPDATE status = new.status`.
 - **Modify:** add a "late" status → change the `ENUM` and the radio buttons; the PHP needs no change.
-- **Weak spots to volunteer:** no CSRF token; no ownership check (any teacher can post any `schedule_id`); and it writes to a legacy `attendance_date` column that nothing reads (the live column is `date`) — so the table has two date columns, one of them dead. The `.env`-bypass bug it used to share with admin login is fixed: the file now requires `app/bootstrap.php` instead of calling `session_start()` and `db_config.php` directly.
+- **Weak spots, and what changed:** the two holes the report found are closed. The form sends `csrf_token` and the handler rejects a missing one with **400**; the handler checks `courses.teacher_id` and returns **403** when a teacher posts another teacher's schedule (both verified, and `tests/smoke.sh` asserts them). The dead `attendance_date` column was dropped, leaving one date column. The `.env` bypass it shared with admin login is fixed. What is left is cosmetic: the `close()` calls after the `try`/`catch` never run, because both branches `exit()`.
 
 #### `check_conflict.php` — room-occupancy probe (23 lines)
 - **Does:** JSON; if `room_id`, `day`, `timeslot` are present, returns `{conflict:bool, course?:string}`.
 - **Point at:** the prepared statement — even a read-only endpoint uses bound parameters.
-- **Reality:** it's only called from the dead admin JS branch, and it never loads `.env`, so in practice it's an orphan endpoint that (a) leaks course names to anyone and (b) fails on a non-default DB. Say: "It should require the admin session and include bootstrap."
+- **Reality, and what changed:** it used to answer any anonymous caller and skip `.env`, so it leaked room occupancy and failed on a non-default database. It now requires `app/bootstrap.php` and an admin session, returning **403** to everyone else (verified), and the admin JS branch that calls it works again now that the container id exists. So it is a used endpoint with an auth check, not an orphan.
 
-#### `get_student_attendance.php` — attendance summary probe (27 lines)
-- **Does:** JSON; returns counts grouped by `present`/`absent` for a `student_id` + `course_id`.
-- **Reality:** **nothing in the app calls it.** It has no auth and no bootstrap. Honest line: "This is leftover from an earlier AJAX widget. It's unused, and if left deployed it lets anyone read any student's attendance counts. Deleting it is the fix; if it's needed, add the session check and derive `student_id` from `$_SESSION`."
+#### `get_student_attendance.php` — deleted in this revision
+- **What it was:** a JSON attendance summary for any `student_id`, with no session check — an unauthenticated read of every student's attendance. Nothing in the app called it.
+- **The answer it gives you:** "An endpoint no page calls is not free: it was an open door with no owner, so I deleted it instead of securing a feature nobody uses." Verified: the URL now returns **404**.
 
 ---
 
@@ -435,7 +435,7 @@ DB_PORT=3306
 
 **What `demo.sql` contains, and why it's one file:** the full nine-table schema (identical to `app/timetable.sql`, which is generated from it), `SET FOREIGN_KEY_CHECKS=0/1` around everything so the alphabetical order can't break the `attendance` foreign key, and seed data sized for the demo: 6 users, 3 rooms, 7 courses, 9 scheduled slots, 9 enrollments, 10 attendance rows, 3 announcements, 2 pending enrollments and 2 competing room bookings. Logins: `admin`/`admin1234`, everyone else `pass1234`.
 
-The seed deliberately contains three live bugs so you can *show* them rather than describe them: **CS103 has no slot** (the invisible-course bug), **CS105 clashes with CS101** (a real `Conflict` button), and **stud_hana already has 5 courses** (the cap mismatch).
+The seed still contains two live bugs so you can *show* them rather than describe them: **CS103 has no slot** (the invisible-course bug) and **CS105 clashes with CS101** (a real `Conflict` button). The third quirk used to be a cap mismatch; the cap is now one value (`MAX_COURSES=5`) everywhere, so **stud_hana at 5 courses** is a *consistent* refusal — the dashboard says "maximum of 5", the server rejects the sixth, and approving her pending request is refused with the same message. That is the better demo: the bug became a policy.
 
 **The trap that used to be here, and is now fixed in this project.** `admin_login_process.php` and `mark_attendance.php` used to start with `session_start(); require_once 'db_config.php';` — no `app/bootstrap.php`, therefore no `.env`, therefore only `getenv()` and the compiled defaults. On XAMPP that was invisible (the defaults match); on **MAMP** (port 8889, password `root`) admin login died with **HTTP 500 "Database connection error."**. I reproduced exactly that, then changed both files to start with
 
@@ -445,7 +445,7 @@ require_once __DIR__ . '/app/bootstrap.php'; //session, .env, db_config
 
 which starts the session, loads `.env` and pulls in `db_config.php`. With that one line, admin login and attendance work from `.env` alone — verified against MySQL 8 with `root`/`root` and no environment variables set.
 
-**Useful talking point:** two endpoints still bypass bootstrap — `check_conflict.php` and `get_student_attendance.php`. Neither is called by the app in normal use (one is called only by dead JS, the other by nothing), so they don't affect the demo, but they are the same defect and worth naming before he finds them.
+**Useful talking point:** the two endpoints that used to bypass bootstrap are dealt with — `check_conflict.php` now requires bootstrap and an admin session (403 otherwise), and `get_student_attendance.php` is deleted (404). Say that you closed them, rather than that they exist.
 
 **If you have PHP installed but no XAMPP:** `php -S localhost:8099 -t .` from the project folder, with MySQL running and the same database. No Apache needed for a demo.
 
@@ -465,7 +465,7 @@ which starts the session, loads `.env` and pulls in `db_config.php`. With that o
 | 10 | **Book a Room** → pick a free cell (e.g. Lab-1, Friday 14:00) | "Three checks: you own the course, the room is free, you're not already teaching. Then it becomes a *pending* request — the teacher can't put themselves on the timetable. Note the grid paints it as booked immediately, even though nothing is committed yet; that's a UI shortcut worth fixing." |
 | 11 | Log out, `admin` / `admin1234` | "The admin has a separate login and a separate session key; that's a design inconsistency I'd unify." |
 | 12 | **Schedule Requests** → Approve the CS103 / R102 / Thursday row | "Two teachers are competing for the same slot in the seed. Inside one transaction: insert the schedule, mark this request approved, and auto-deny the other. Reload and the second row is `Denied`." |
-| 13 | **Enrollment Requests** → Approve stud_hana's request | "She already had five courses; approving gives her six. The admin path skips the cap the student path enforces — that's the bug, not a feature." |
+| 13 | **Enrollment Requests** → try stud_hana's request, then approve stud_selam's | "She already has five courses, so the approval is refused — same `MAX_COURSES` value the student dashboard uses. The other request is inside the cap and goes through. This used to be a bug: the admin path had no cap check at all." |
 | 14 | **Reports** | "Enrollment counts per course and room utilization against 40 slots per week." |
 
 If something breaks mid-demo, the honest line depends on the symptom: a **fatal about a missing table** means the database came from an older or partial dump — re-import `demo.sql` into a fresh database; a **500 on admin login** would now mean the `.env` values themselves are wrong, since those pages honour `.env` — check `DB_HOST`, `DB_USER`, `DB_PASS` and the port (MAMP's MySQL listens on **8889**, not 3306). Say which one it is, name the cause, move on. You lose nothing by knowing.
@@ -478,8 +478,8 @@ If something breaks mid-demo, the honest line depends on the symptom: a **fatal 
 | Add a "Saturday" class day | `app/Domain/DayOfWeek.php`, the three literal arrays in `teacher_dashboard.php`, `admin_dashboard.php`, `room_dashboard.php`, plus the `FIELD(...)` sorts | Every grid gains a column; the `UNIQUE (room, day, timeslot)` key needs no change |
 | Add a new admin feature | `manage_admin_tasks.php` (new `case`), `admin_dashboard.php` (form + `source_page`) | Nothing else — that's the extension pattern |
 | Show course credits | `admin_dashboard.php` (the data is already fetched at `:31`), one `<th>` and one `<td>` | No query change |
-| Fix the dead Edit-user modal | `js/script.js:19` guard, or add `id="adminTabContent"` to `div.main-content` | The modal also needs the `data-*` attributes, which already exist |
-| Make enrollment cap consistent | as row 1 | Also update §"Request Approval" logic if 5 is the hard policy |
+| Fix the dead Edit-user modal (**already done**) | one attribute in `admin_dashboard.php`: `id="adminTabContent"` on `div.main-content` | The handlers bind, and `check_conflict.php` starts being used — which is why it now needs its admin guard |
+| Make enrollment cap consistent (**already done**) | `AppConfig::maxCourses()` is the only source; `MAX_COURSES` in `.env` overrides it | Dashboard text, AJAX endpoint and admin approval all follow |
 | Add prerequisites | new `prerequisite_id` column, `EnrollmentService::enroll()` | The controller and JS need no change |
 | Add an audit log for attendance | new table, write inside the existing transaction in `mark_attendance.php` | The read side is a new admin page |
 | Let teachers book without approval | `manage_teacher_tasks.php:77` — insert into `schedules` instead of `pending_schedules` | The admin approval page loses its purpose; the UNIQUE key still protects you |
@@ -495,19 +495,19 @@ If something breaks mid-demo, the honest line depends on the symptom: a **fatal 
 5. **"What stops two bookings at once?"** → `UNIQUE (room_id, day_of_week, timeslot)` in the database; the PHP check is the friendly error, the constraint is the guarantee.
 6. **"Why a transaction for attendance?"** → a class is marked fully or not at all; a mid-loop failure would leave half the roster wrong.
 7. **"What's `ON DUPLICATE KEY UPDATE` for?"** → re-submitting attendance for the same date corrects instead of erroring, using the unique key. Its `VALUES()` form is deprecated on MySQL 8.0.20+ (warning 1287, observed on 8.0.46); the modern form aliases the inserted row.
-8. **"Where do you check authorization?"** → role guard at the top of every page, plus ownership checks in `manage_teacher_tasks.php` (`WHERE ... AND teacher_id=?`).
+8. **"Where do you check authorization?"** → role guard at the top of every page, plus ownership checks in `manage_teacher_tasks.php` (`WHERE ... AND teacher_id=?`) and in `mark_attendance.php` (`courses.teacher_id` before any write). Posting another teacher's schedule is a 403 now.
 9. **"Is any SQL injectable?"** → no: all user input is bound. The only string interpolation is in `IN (?,?,...)` placeholders, which are generated from a count, not from input.
-10. **"What's the weakest part?"** → `mark_attendance.php`: no CSRF, no ownership check. Then `.env` sitting in the web root.
+10. **"What's the weakest part?"** → what is left: `admin_login_process.php` has no CSRF token and no session rotation, and self-registration is open to anyone as a teacher. The two I fixed were the attendance holes (CSRF + ownership) and `.env` in the web root (untracked, and denied by `.htaccess`).
 11. **"Why is a course missing from my schedule?"** → the schedule query uses INNER JOIN on `schedules`; a course with no scheduled slot drops out.
-12. **"Why does Enroll fail at 5 courses?"** → the UI reads `MAX_COURSES` (default 6), the endpoint hard-codes 5.
+12. **"Why does Enroll fail at 5 courses?"** → because `MAX_COURSES=5` and every path reads it: the dashboard text, the AJAX endpoint and the admin approval. It used to be a UI/server mismatch (6 vs 5); fixing that is what produced the single value.
 13. **"What's the difference between `pending_enrollments` and `enrollments`?"** → a request is a queue row with a status; an enrollment is the real relation with a unique key.
 14. **"Why two tables for room booking?"** → `pending_schedules` is the request queue; `schedules` is the committed timetable. A teacher proposes, an admin commits.
 15. **"Where's the N+1?"** → avoided in `teacher_dashboard.php`: three batch queries + PHP grouping instead of one query per course.
 16. **"What does `mysqli_report(STRICT)` change?"** → SQL errors throw exceptions instead of returning `false`, which unmakes every `if ($stmt->execute()) else` pattern.
-17. **"How would you deploy this?"** → set `APP_DEBUG=0`, deny `.env` and `storage/`, force HTTPS, set `session.cookie_httponly`/`samesite`, and add the two missing tables to the schema.
+17. **"How would you deploy this?"** → `APP_DEBUG=0`, the committed `.htaccess` denying dotfiles plus `app/`, `storage/` and dumps, HTTPS, `session.cookie_httponly`/`samesite`, and a real migration path instead of a dump.
 18. **"Is this MVC?"** → not strictly: page-per-file, with a repository/service layer used only by enrollment.
 19. **"Why no framework?"** → it keeps the stack to PHP+MySQL and shows the mechanics directly; the cost is duplicated plumbing, which is visible in `db_config.php` vs `app/Core/Database.php`.
-20. **"What would you do first with another week?"** → unify authentication, fix the schema so a fresh clone installs, add CSRF + ownership to `mark_attendance.php`, and make the two caps read one constant.
+20. **"What would you do first with another week?"** → unify the two authentication models, add CSRF and session rotation to admin login, close self-registration as teacher, and replace the dump with migrations. The schema and the cap are done.
 21. **"What's the empty file?"** → `app/security_headers.php`; the headers moved into `bootstrap.php` and the file should be deleted.
 22. **"Why does the profile say 'No email on file'?"** → `profile.php` reads `$_SESSION['email']`, which login never sets; it should query the `users` row.
 23. **"Why would admin login fail on another machine?"** → It did: the page skipped bootstrap, so `.env` was ignored and only `getenv()` plus defaults counted — 500 on MAMP credentials. I changed it (and `mark_attendance.php`) to require `app/bootstrap.php`, and verified admin login returns 302 from `.env` alone against MySQL 8 with `root`/`root`.

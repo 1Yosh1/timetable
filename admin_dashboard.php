@@ -146,7 +146,7 @@ if ($page === 'reports') {
     <hr style="border-color:#404249;">
     <a href="logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a>
 </div>
-<div class="main-content">
+<div class="main-content" id="adminTabContent">
 
 <?php if ($page === 'home'): ?>
     <h1 class="mb-4">Dashboard Home</h1>

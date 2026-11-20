@@ -1,10 +1,22 @@
 <?php
+// Fail visibly on an old PHP instead of a blank page: display_errors is off in
+// production mode, so a lab machine on PHP 7.4 would otherwise show nothing.
+// The codebase needs 8.1+ ("never" return type, str_starts_with, enums).
+if (PHP_VERSION_ID < 80100) {
+    http_response_code(500);
+    exit('This application requires PHP 8.1 or newer.');
+}
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
 require_once __DIR__ . '/Support/EnvLoader.php';
 App\Support\EnvLoader::load(__DIR__ . '/../.env');
+
+// Attendance dates are written with date(), so the zone must be explicit.
+// A php.ini default of UTC turns an evening demo's date into "yesterday".
+date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'Africa/Addis_Ababa');
 
 if (!class_exists('App\\Debug\\Inspector')) {
     // autoload fallback

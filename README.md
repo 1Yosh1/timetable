@@ -75,6 +75,19 @@ The **Timetable Management System** is a web-based application designed to manag
 
 ---
 
+## Between Rehearsals
+- `bash demo/reset.sh` drops the database, re-imports `demo.sql` and clears login lockouts,
+  so a rehearsal and the real demo start from the same state.
+- `BASE_URL=http://localhost/timetable bash tests/smoke.sh` runs 26 assertions — logins, the
+  enrollment cap, attendance CSRF and ownership, the seven admin pages, approvals — and
+  exits non-zero if any of them fails.
+- After five wrong passwords on one account, that login is refused for five minutes. The
+  counter lives in `storage/bruteforce/`; `rm -f storage/bruteforce/*.json` clears it.
+- `.htaccess` denies `.env`, `demo.sql`, `app/`, `storage/` and this README to the browser.
+  Apache needs `AllowOverride All` (XAMPP's default); without it the rules are ignored.
+
+---
+
 ## Database Design
 
 Both files describe the same design: `app/timetable.sql` is the schema on its own, and
@@ -139,6 +152,8 @@ The schema below is what both files create.
 ## Security Features
 - **CSRF Protection**:
   - Ensures all forms include a CSRF token to prevent cross-site request forgery.
+  - The one exception is `admin_login_process.php`, which still accepts a POST without a
+    token (login CSRF is lower severity, but it is a real gap).
 - **Password Hashing**:
   - Uses `password_hash()` for secure password storage.
 - **Role-Based Access Control**:

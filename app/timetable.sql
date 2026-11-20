@@ -20,15 +20,11 @@ SET NAMES utf8mb4;
 CREATE TABLE `attendance` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `student_id` int(11) DEFAULT NULL,
-  `attendance_date` date DEFAULT NULL,
   `schedule_id` int(11) DEFAULT NULL,
   `status` enum('present','absent') NOT NULL,
   `date` date NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `student_schedule_date` (`student_id`,`schedule_id`,`date`),
-  KEY `student_id` (`student_id`),
-  KEY `schedule_id` (`schedule_id`),
-  KEY `idx_attendance_student` (`student_id`),
   KEY `idx_attendance_schedule` (`schedule_id`),
   CONSTRAINT `attendance_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `attendance_ibfk_2` FOREIGN KEY (`schedule_id`) REFERENCES `schedules` (`id`) ON DELETE CASCADE
@@ -51,10 +47,6 @@ CREATE TABLE `enrollments` (
   `course_id` int(11) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `student_course` (`student_id`,`course_id`),
-  UNIQUE KEY `uniq_enrollment` (`student_id`,`course_id`),
-  KEY `student_id` (`student_id`),
-  KEY `course_id` (`course_id`),
-  KEY `idx_enrollments_student` (`student_id`),
   KEY `idx_enrollments_course` (`course_id`),
   CONSTRAINT `enrollments_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
   CONSTRAINT `enrollments_ibfk_2` FOREIGN KEY (`course_id`) REFERENCES `courses` (`id`) ON DELETE CASCADE

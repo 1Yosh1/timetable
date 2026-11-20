@@ -182,6 +182,7 @@ $timeslots = ["09:00-10:00", "10:00-11:00", "11:00-12:00", "12:00-13:00", "13:00
                             <?php if (empty($course['schedules'])): ?><p class="text-secondary">No schedule found for this course to take attendance.</p>
                             <?php else: ?>
                                 <form action="mark_attendance.php" method="POST">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($token); ?>">
                                     <div class="form-row align-items-end">
                                         <div class="form-group col-md-5"><label>Select Class Session:</label><select name="schedule_id" class="form-control" required><option value="">-- Select a time --</option><?php foreach($course['schedules'] as $schedule): ?><option value="<?php echo $schedule['id']; ?>"><?php echo htmlspecialchars($schedule['day_of_week'] . " at " . $schedule['timeslot'] . " (" . $schedule['room_name'] . ")"); ?></option><?php endforeach; ?></select></div>
                                         <div class="form-group col-md-4"><label>Date:</label><input type="date" name="attendance_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required></div>

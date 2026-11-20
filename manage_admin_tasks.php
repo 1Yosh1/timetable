@@ -105,8 +105,13 @@ switch ($action) {
             $stmt = $conn->prepare("UPDATE users SET username=?, email=?, role=? WHERE id=? AND role!='admin'");
             $stmt->bind_param('sssi', $username, $email, $role, $userId);
         }
-        $stmt->execute();
-        $msg = 'User updated';
+        try {
+            $stmt->execute();
+            $msg = 'User updated';
+        } catch (mysqli_sql_exception $e) {
+            $success = false;
+            $msg = 'Update failed: that username or email is already taken';
+        }
         break;
 
     case 'delete_user':
@@ -114,8 +119,13 @@ switch ($action) {
         if ($userId <= 0) { $success = false; $msg='Invalid user id'; break; }
         $stmt = $conn->prepare("DELETE FROM users WHERE id=? AND role!='admin' LIMIT 1");
         $stmt->bind_param('i', $userId);
-        $stmt->execute();
-        $msg = $stmt->affected_rows ? 'User deleted' : 'No deletion';
+        try {
+            $stmt->execute();
+            $msg = $stmt->affected_rows ? 'User deleted' : 'No deletion';
+        } catch (mysqli_sql_exception $e) {
+            $success = false;
+            $msg = 'Cannot delete: this user is still assigned to one or more courses';
+        }
         break;
 
     /* --------------- COURSE MANAGEMENT ---------------- */
@@ -214,6 +224,17 @@ switch ($action) {
 
         $studentId = (int)$row['student_id'];
         $courseId  = (int)$row['course_id'];
+
+        // Same cap the student path enforces, so an approval cannot bypass it.
+        $limit = \App\Config\AppConfig::maxCourses();
+        $cnt = $conn->prepare("SELECT COUNT(*) c FROM enrollments WHERE student_id=?");
+        $cnt->bind_param('i', $studentId);
+        $cnt->execute();
+        if ((int)($cnt->get_result()->fetch_assoc()['c'] ?? 0) >= $limit) {
+            $success = false;
+            $msg = 'Student is already at the enrollment limit (' . $limit . ')';
+            break;
+        }
 
         // Enroll (ignore duplicate silently via INSERT IGNORE style approach)
         $en = $conn->prepare("INSERT IGNORE INTO enrollments (student_id, course_id) VALUES (?,?)");

@@ -1,0 +1,29 @@
+# UniMe — deny everything that is not an application entry point.
+# Apache 2.4 (XAMPP, MAMP). nginx ignores this file; there, deny the same
+# paths in the server block.
+#
+# Why: .env holds the database password, and app/ holds the source. Removal
+# from git does not stop the web server serving them — without this file,
+# /.env returns the file's contents to anyone who asks.
+#
+# Test after editing:  curl -i http://localhost/timetable/.env   -> 403
+
+# Dotfiles and backups: .env, .gitignore, .htaccess itself, editor swaps
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+<FilesMatch "~$|\.(bak|swp|orig)$">
+    Require all denied
+</FilesMatch>
+
+# Data dumps, documentation and scripts (phpMyAdmin imports do not use HTTP,
+# so demo.sql remains importable; it just is not downloadable)
+<FilesMatch "\.(sql|md|log|ini|sh)$">
+    Require all denied
+</FilesMatch>
+
+# Application code and runtime state, at any depth (works under /timetable/)
+RedirectMatch 404 /app(/|$)
+RedirectMatch 404 /storage(/|$)
+RedirectMatch 404 /tests(/|$)
+RedirectMatch 404 /composer\.(json|lock)$

@@ -20,7 +20,9 @@ final class AppConfig
 
     public static function maxCourses(): int
     {
-        return (int) self::get('MAX_COURSES', 6);
+        // Single source of truth: the dashboard, the AJAX endpoint and the
+        // admin approval path all read this value (or MAX_COURSES in .env).
+        return (int) self::get('MAX_COURSES', 5);
     }
 
     public static function appName(): string

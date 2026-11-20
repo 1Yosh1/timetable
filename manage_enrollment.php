@@ -2,6 +2,7 @@
 require_once __DIR__ . '/app/bootstrap.php';
 require_once 'app/csrf.php';
 
+use App\Config\AppConfig;
 use App\Repositories\EnrollmentRepository;
 use App\Repositories\ScheduleRepository;
 use App\Services\EnrollmentService;
@@ -23,7 +24,7 @@ $controller = new EnrollmentController(
     new EnrollmentService(
         new EnrollmentRepository(),
         new ScheduleRepository(),
-        5 // aligned with UI
+        AppConfig::maxCourses() // one limit for the UI and the server
     )
 );
 $response = $controller->handle($_POST, (int)$_SESSION['user_id']);

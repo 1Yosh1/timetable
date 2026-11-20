@@ -148,11 +148,11 @@ The first three are properties of the schedule itself and are enforced (or not) 
 | F4 | Admin CRUD over users, courses, rooms | `admin_dashboard.php`, `manage_admin_tasks.php` | Partial — room CRUD absent |
 | F5 | Teacher-to-course assignment | `manage_admin_tasks.php:assign_teacher` | Yes — validates target role |
 | F6 | Schedule creation with conflict rejection | `manage_admin_tasks.php:add_schedule` | Yes — 3 of 3 global constraints |
-| F7 | Live pre-submit conflict warning | `check_conflict.php` + `js/script.js` | **No** — JS branch unreachable |
-| F8 | Enrollment with conflict check and cap | `EnrollmentService`, `manage_enrollment.php` | Partial — cap mismatch |
-| F9 | Enrollment approval workflow | `pending_enrollments`, admin `requests` page | Yes — but bypasses caps |
+| F7 | Live pre-submit conflict warning | `check_conflict.php` + `js/script.js` | Yes — binding fixed in this revision |
+| F8 | Enrollment with conflict check and cap | `EnrollmentService`, `manage_enrollment.php` | Yes — one cap (`MAX_COURSES`) in this revision |
+| F9 | Enrollment approval workflow | `pending_enrollments`, admin `requests` page | Yes — the cap is enforced in the approval path too |
 | F10 | Teacher room-booking request + admin approval | `pending_schedules` | Yes — best-designed flow in the app |
-| F11 | Attendance capture per session and date | `mark_attendance.php` | Partial — missing authz/CSRF |
+| F11 | Attendance capture per session and date | `mark_attendance.php` | Yes — CSRF + ownership added in this revision |
 | F12 | Attendance reporting to students | `student_dashboard.php` | Yes |
 | F13 | Announcements per course | `manage_teacher_tasks.php` | Yes — ownership enforced |
 | F14 | Utilisation and enrollment reports | `admin_dashboard.php?page=reports` | Yes |
@@ -721,9 +721,13 @@ $stmt = $conn->prepare("SELECT 1 FROM schedules s JOIN courses c ON c.id = s.cou
 
 Note that `manage_teacher_tasks.php` **does** implement exactly this pattern for announcements and bookings (`WHERE id = ? AND teacher_id = ?` in the DELETE, and an explicit ownership SELECT before booking). The attendance endpoint is the one place the pattern was not applied — evidence that the check is a convention of the module rather than a rule of the system.
 
+> **Status after this revision.** Fixed. `mark_attendance.php` now looks up `courses.id = ? AND teacher_id = ?` for the posted `schedule_id` and returns **403** before writing when it does not match. Verified: teacher 3 posting schedule 1 (teacher 2's course) gets 403 and no row; the owning teacher's submission still returns 302 and writes the row.
+
 ### 9.3 Other defects on the write path
 
 **No CSRF token.** The attendance form in `teacher_dashboard.php` contains no `csrf_field()`, and `mark_attendance.php` contains no `verify_csrf()`. Every other mutating endpoint in the application has one or both. This is the only state-changing form in the system without CSRF protection, and it is the one whose damage (falsified attendance) is hardest to detect after the fact.
+
+> **Status after this revision.** Fixed. The form sends a hidden `csrf_token` and the handler returns **400** on a missing or wrong token. Both halves are asserted by `tests/smoke.sh`.
 
 **Loose comparison in the enrollee guard.** `in_array($student_id, $enrolled_student_ids)` runs in non-strict mode, so `'5'` matches `5`. It happens to work because PHP array keys from `$_POST` are strings and `mysqli` with `mysqlnd` returns integers, but it is one type change away from either failing closed (attendance silently not saved) or matching wrongly. `in_array(..., true)` with an explicit `(int)` cast is the safe form.
 
@@ -1616,21 +1620,23 @@ Fix the unauthenticated endpoints, then the CSRF gaps, then the ownership check,
 
 Severity: C = Critical, H = High, M = Medium, L = Low. Effort: S = under 15 min, M = under 2 h, L = under a day.
 
+> **Status after this revision.** Rows 1, 2, 3, 4, 6, 9, 10, 11, 12 and 13 are addressed, and the dead `attendance_date` column and the duplicate indexes in §6.3 are gone; each row says how. Everything else stands as written, including the items that need a design decision rather than a patch: admin-login CSRF and session rotation, open self-registration as teacher, and a real migration path. The verification for all of the above is `tests/smoke.sh` (26 assertions) run against a freshly imported `demo.sql`.
+
 | # | Sev | Finding | Evidence | Fix | Effort |
 |---|---|---|---|---|---|
 | 1 | C | Attendance readable for any student, unauthenticated | `get_student_attendance.php:7-8`, no session check | Delete, or bind `student_id` to session | S |
-| 2 | C | Room occupancy enumerable, unauthenticated | `check_conflict.php:5-9` | Delete; re-add behind auth | S |
-| 3 | H | Teacher can write attendance for any course | `mark_attendance.php:5` (role only) | Add `JOIN courses … c.teacher_id = ?` | S |
-| 4 | H | Attendance form/handler have no CSRF | `teacher_dashboard.php:186`, `mark_attendance.php` | `csrf_field()` + `verify_csrf()` | S |
+| 2 | C | Room occupancy enumerable, unauthenticated | `check_conflict.php:5-9` | **Fixed in this revision**: admin session required, 403 otherwise | S |
+| 3 | H | Teacher can write attendance for any course | `mark_attendance.php:5` (role only) | **Fixed in this revision**: `courses.teacher_id` check, 403 | S |
+| 4 | H | Attendance form/handler have no CSRF | `teacher_dashboard.php:186`, `mark_attendance.php` | **Fixed in this revision**: hidden token + `verify_csrf()`, 400 | S |
 | 5 | H | Admin login: no CSRF, no session rotation | `admin_login_process.php:20-25` | Token check + `session_regenerate_id(true)` | S |
-| 6 | H | Approval bypasses cap and conflict rules | `manage_admin_tasks.php:219` `INSERT IGNORE` | Delegate to service; catch duplicate | M |
+| 6 | H | Approval bypasses cap and conflict rules | `manage_admin_tasks.php:219` `INSERT IGNORE` | **Fixed in this revision** for the cap (`AppConfig::maxCourses()`); duplicate insert still `INSERT IGNORE` | M |
 | 7 | H | Open self-registration as `teacher` grants writes | `register_process.php:38` | Invitation/approval flow | M |
 | 8 | M | `.env` tracked in git; no `.htaccess` | `git ls-files`; no dotfile deny | `git rm --cached`, ignore, `.env.example`, deny rule | S |
 | 9 | M | Two of nine required tables absent from schema | `app/timetable.sql` vs code | Complete migration. **Fixed in this revision**: `app/timetable.sql` regenerated from `demo.sql`, 9 tables, verified to import on MariaDB 11.3 and MySQL 8.0 | S |
 | 10 | M | Schema has no semicolons; cannot import | whole file | Rewrite as migration | S |
-| 11 | M | Enrollment limit: UI 6, server 5 | `AppConfig:23` vs `manage_enrollment.php:26` | One source of truth | S |
-| 12 | M | Admin edit-user modal dead | `js/script.js:19` guard | Remove guard, bind directly | S |
-| 13 | M | Live conflict warning dead | `js/script.js:253` guard | Same | S |
+| 11 | M | Enrollment limit: UI 6, server 5 | `AppConfig:23` vs `manage_enrollment.php:26` | **Fixed in this revision**: both read `AppConfig::maxCourses()`, `MAX_COURSES=5` | S |
+| 12 | M | Admin edit-user modal dead | `js/script.js:19` guard | **Fixed in this revision**: `id="adminTabContent"` added to the admin container | S |
+| 13 | M | Live conflict warning dead | `js/script.js:253` guard | **Fixed in this revision**: same attribute; `check_conflict.php` is now admin-only | S |
 | 14 | M | Duplicate registration → HTTP 500 | `register_process.php:62` + `MYSQLI_REPORT_STRICT` | `try/catch mysqli_sql_exception` | S |
 | 15 | M | `enroll()` duplicate → 500 → "network error" | `EnrollmentService:27` | Catch in controller, return 409 JSON | S |
 | 16 | M | Enrolling in an unscheduled course hides it | `student_dashboard.php:139` + INNER JOIN read | Filter or render unscheduled section | M |
