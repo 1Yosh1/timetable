@@ -449,6 +449,8 @@ which starts the session, loads `.env` and pulls in `db_config.php`. With that o
 
 **If you have PHP installed but no XAMPP:** `php -S localhost:8099 -t .` from the project folder, with MySQL running and the same database. No Apache needed for a demo.
 
+**What if the room has no Wi-Fi?** Nothing to do: Bootstrap, jQuery and Font Awesome are vendored in `vendor/` and every page links them locally, so the tabs, modals and icons work offline. They used to come from four CDNs, which meant an unstyled page with dead tabs on a network with no route out.
+
 ### 4.2 The demo script (14 steps, about 15 minutes, in this order)
 
 | # | Do this | Say this |

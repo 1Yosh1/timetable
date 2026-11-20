@@ -40,7 +40,7 @@ Then **Reports** for enrollment counts and room utilization.
 | "The server requested authentication" / blank 500 | `.env` credentials wrong | `DB_HOST`, `DB_USER`, `DB_PASS`, `DB_PORT` (MAMP: password `root`, port `8889`) |
 | Missing table (`announcements`, `pending_schedules`) | old or partial dump | `bash demo/reset.sh` |
 | Login says "Too many attempts" | brute-force limiter, 5 wrong passwords | `rm -f storage/bruteforce/*.json` |
-| Page has no styling, tabs do nothing | no internet: Bootstrap/jQuery come from CDNs | say so and demo the tabs' content by scrolling; the server side is unaffected |
+| Page has no styling, tabs do nothing | `vendor/` was not copied with the project | re-copy the `vendor/` folder; the app loads nothing from the internet |
 | Everything is dead | Apache down | `php -S localhost:8099 -t .` from the project folder, then open `:8099` |
 
 ## Reset between rehearsal and the real thing
